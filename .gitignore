@@ -1,0 +1,6 @@
+.validation/
+node_modules/
+*.rbxl
+*.rbxlx
+*.lock
+Дизайн/

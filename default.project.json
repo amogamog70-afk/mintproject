@@ -1,0 +1,15 @@
+{
+  "name": "MintProject",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "MintProject": {"$path": "src"},
+      "MintProjectDemo": {"$path": "examples/Demo.luau"}
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "MintProjectDemo": {"$path": "examples/Studio.client.luau"}
+      }
+    }
+  }
+}
