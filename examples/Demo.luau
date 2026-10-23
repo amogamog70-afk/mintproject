@@ -1,154 +1,202 @@
--- This module is shared by the Studio example and the standalone demo bundle.
-return function(MintProject, options)
-    local window = MintProject:CreateWindow(options or { Title = 'MintProject  /  UI preview' })
-    local overview = window:Tab('Overview')
-    local welcome = overview:Section('MINTPROJECT')
-    welcome:Label(
-        'A compact black and mint interface. Drag the title bar. Right Shift or M toggles the window.'
+-- Editable UI example. The generated root Example.lua loads the library first,
+-- then contains these tab/group/control definitions directly below the links.
+return function(Library, options, ThemeManager, SaveManager)
+    ThemeManager = ThemeManager or Library.ThemeManager
+    SaveManager = SaveManager or Library.SaveManager
+    local Window = Library:CreateWindow(options or {
+        Title = 'MintProject',
+        Subtitle = 'UNIVERSAL / DESIGN PREVIEW',
+        Columns = 3,
+        AutoShow = true,
+    })
+    local Tabs = {
+        Main = Window:AddTab('Main'),
+        Components = Window:AddTab('Components'),
+        Settings = Window:AddTab('Settings'),
+        About = Window:AddTab('About'),
+    }
+    local Toggles, Options = Library.Toggles, Library.Options
+
+    local General = Tabs.Main:AddLeftGroupbox('General')
+    General:AddToggle('Enabled', { Text = 'Enable interface', Default = true }):AddKeyPicker(
+        'EnabledKey',
+        { Default = 'F6', Mode = 'Toggle', SyncToggleState = true, Text = 'Enable interface' }
     )
-    welcome:Button({
-        Text = 'Show notification',
-        Callback = function()
-            window:Notify('MintProject is ready. This is a UI demonstration.')
-        end,
-    })
-    local preview = overview:Section('Quick controls')
-    preview:Toggle({ Id = 'demo.enabled', Text = 'Enable preview', Default = true })
-    preview:Slider({
-        Id = 'demo.amount',
-        Text = 'Amount',
-        Description = 'Drag the track to adjust. Click its number to type a precise value.',
-        Min = 0,
-        Max = 100,
-        Step = 1,
-        Default = 65,
-    })
-    preview:Dropdown({
-        Id = 'demo.mode',
-        Text = 'Mode',
-        Options = { 'Balanced', 'Compact', 'Detailed' },
-        Default = 'Balanced',
-    })
-
-    local components = window:Tab('Components')
-    local sliders = components:Section('Sliders')
-    sliders:Slider({ Id = 'slider.smooth', Text = 'Smooth', Min = 0, Max = 1, Step = 0, Default = 0.65 })
-    sliders:Slider({ Id = 'slider.step', Text = 'Stepped', Min = 0, Max = 100, Step = 5, Default = 40 })
-    sliders:RangeSlider({
-        Id = 'slider.range',
-        Text = 'Range',
-        Min = 0,
-        Max = 100,
-        Step = 1,
-        Default = { 20, 80 },
-    })
-    local lists = components:Section('Selection and input')
-    lists:Dropdown({
-        Id = 'demo.multiselect',
-        Text = 'Components',
+    General:AddDropdown(
+        'ProfileMode',
+        { Text = 'Workspace', Values = { 'Default', 'Creative', 'Focused' }, Default = 'Default' }
+    )
+    General:AddSlider(
+        'Intensity',
+        { Text = 'Intensity', Min = 0, Max = 100, Default = 65, Rounding = 0, Suffix = '%' }
+    )
+    General:AddSlider(
+        'Transition',
+        { Text = 'Transition speed', Min = 0.05, Max = 1, Default = 0.18, Rounding = 2, Suffix = ' s' }
+    )
+    General:AddDropdown('VisibleWidgets', {
+        Text = 'Visible widgets',
+        Values = { 'Notifications', 'Status bar', 'Tooltips' },
         Multi = true,
-        Options = {
-            'Buttons',
-            'Toggles',
-            'Sliders',
-            'Ranges',
-            'Dropdowns',
-            'Multiselects',
-            'Textboxes',
-            'Keybinds',
-            'Colors',
-            'Profiles',
-        },
-        Default = { 'Buttons', 'Sliders', 'Colors' },
-    })
-    lists:Textbox({ Id = 'demo.message', Text = 'Message', Default = 'Hello, MintProject' })
-    lists:Keybind({
-        Id = 'demo.key',
-        Text = 'Notification key',
-        Default = Enum.KeyCode.F6,
-        OnPress = function()
-            window:Notify('Keybind pressed')
-        end,
+        Default = { 'Notifications', 'Status bar' },
     })
 
-    local appearance = window:Tab('Appearance')
-    local theme = appearance:Section('Theme')
-    theme:ColorPicker({
-        Id = 'theme.accent',
-        Text = 'Mint accent',
-        Default = window.Context.Theme.Accent,
-        Callback = function(color)
-            window:SetTheme({ Accent = color })
-        end,
-    })
-    theme:ColorPicker({
-        Id = 'theme.background',
-        Text = 'Background',
-        Default = window.Context.Theme.Background,
-        Callback = function(color)
-            window:SetTheme({ Background = color })
-        end,
-    })
-    theme:Toggle({
-        Id = 'theme.animations',
+    local Display = Tabs.Main:AddGroupbox('Display', { Column = 2 })
+    Display:AddToggle('Motion', {
         Text = 'Smooth transitions',
         Default = true,
         Callback = function(value)
-            window:SetAnimations(value)
+            Window:SetAnimations(value)
         end,
     })
-    theme:Keybind({
-        Id = 'theme.openKey',
-        Text = 'Open / close menu',
-        Default = Enum.KeyCode.RightShift,
-        Callback = function(key)
-            window:SetToggleKey(key)
+    Display:AddToggle('Information', { Text = 'Contextual information', Default = true })
+    Display:AddToggle('Compact', { Text = 'Compact spacing', Default = false })
+    Display:AddLabel('Accent color'):AddColorPicker('AccentColor', {
+        Default = Library.Theme.Accent,
+        Callback = function(color)
+            Library:SetTheme({ Accent = color })
+        end,
+    })
+    Display:AddDropdown(
+        'Detail',
+        { Text = 'Detail level', Values = { 'Balanced', 'Minimal', 'Detailed' }, Default = 'Balanced' }
+    )
+    Display:AddSlider(
+        'ScalePreview',
+        { Text = 'Preview amount', Min = 0, Max = 100, Default = 80, Rounding = 0 }
+    )
+    Display:AddButton({
+        Text = 'Show notification',
+        Func = function()
+            Library:Notify('MintProject / Your interface is ready.')
         end,
     })
 
-    local profiles = window:Tab('Profiles')
-    local storage = profiles:Section('Named profiles')
-    storage:Label('Profiles stay in memory for this session. Use JSON to keep a copy between sessions.')
-    local name = storage:Textbox({ Text = 'Profile name', Default = 'Default' })
-    storage:Button({
-        Text = 'Save profile',
-        Callback = function()
-            if #name:Get() == 0 then
-                window:Notify('Enter a profile name')
-                return
+    local Session = Tabs.Main:AddGroupbox('Session', { Column = 3 })
+    Session:AddInput('WorkspaceName', { Text = 'Workspace name', Default = 'My workspace' })
+    Session:AddDropdown(
+        'UpdatePolicy',
+        { Text = 'Update policy', Values = { 'Automatic', 'On change', 'Manual' }, Default = 'On change' }
+    )
+    Session:AddToggle('Hints', {
+        Text = 'Show help buttons',
+        Default = true,
+        Tooltip = 'Descriptions open with the separate i button.',
+    })
+    Session:AddButton({
+        Text = 'Save quick profile',
+        Primary = true,
+        Func = function()
+            Window:SaveProfile('Quick')
+            Library:Notify('Quick profile saved for this session')
+        end,
+    })
+    Session:AddButton({
+        Text = 'Restore quick profile',
+        Func = function()
+            local ok, err = Window:LoadProfile('Quick')
+            Library:Notify(ok and 'Quick profile restored' or err)
+        end,
+    })
+
+    local Actions = Tabs.Main:AddLeftGroupbox('Actions')
+    Actions:AddButton({
+        Text = 'Apply settings',
+        Primary = true,
+        Func = function()
+            Library:Notify('Settings applied')
+        end,
+    })
+    Actions:AddButton({
+        Text = 'Hide interface',
+        Func = function()
+            Window:SetVisible(false)
+        end,
+    })
+
+    local Sliders = Tabs.Components:AddLeftGroupbox('Sliders')
+    Sliders:AddSlider('SmoothSlider', { Text = 'Smooth value', Min = 0, Max = 1, Default = 0.72, Step = 0 })
+    Sliders:AddSlider('StepSlider', { Text = 'Stepped value', Min = 0, Max = 100, Default = 40, Step = 5 })
+    Sliders:AddRangeSlider('Range', { Text = 'Range', Min = 0, Max = 100, Default = { 25, 75 }, Step = 1 })
+    local Select = Tabs.Components:AddRightGroupbox('Selection')
+    Select:AddDropdown('LongList', {
+        Text = 'Searchable list',
+        Values = {
+            'Amber',
+            'Birch',
+            'Cedar',
+            'Clover',
+            'Fern',
+            'Graphite',
+            'Ice',
+            'Jade',
+            'Mint',
+            'Olive',
+            'Sage',
+            'Willow',
+        },
+        Default = 'Mint',
+    })
+    Select:AddDropdown('MultiExample', {
+        Text = 'Multiple values',
+        Values = { 'Alpha', 'Beta', 'Gamma', 'Delta' },
+        Multi = true,
+        Default = {
+            'Alpha',
+            'Gamma',
+        },
+    })
+    Select:AddInput('ExampleInput', { Text = 'Editable text', Default = 'Hello, MintProject' })
+    local Bindings = Tabs.Components:AddGroupbox('Keybinds & colors', { Column = 3 })
+    Bindings:AddToggle('LinkedToggle', { Text = 'Linked control', Default = false })
+        :AddKeyPicker('LinkedKey', { Default = 'F7', Mode = 'Toggle', SyncToggleState = true })
+    Bindings:AddLabel('Custom color')
+        :AddColorPicker('ExampleColor', { Default = Color3.fromRGB(116, 227, 174) })
+    Bindings:AddLabel('Notification key'):AddKeyPicker('NoticeKey', {
+        Default = 'F8',
+        Mode = 'Toggle',
+        Callback = function(active)
+            if active then
+                Library:Notify('Keybind pressed')
             end
-            window:SaveProfile(name:Get())
-            window:Notify('Saved: ' .. name:Get())
         end,
     })
-    storage:Button({
-        Text = 'Load profile',
-        Callback = function()
-            local ok, err = window:LoadProfile(name:Get())
-            window:Notify(ok and 'Profile loaded' or err)
+
+    ThemeManager:SetLibrary(Library)
+    ThemeManager:SetFolder('MintProject')
+    ThemeManager:ApplyToTab(Tabs.Settings)
+    SaveManager:SetLibrary(Library)
+    SaveManager:IgnoreThemeSettings()
+    SaveManager:SetFolder('MintProject')
+    SaveManager:BuildConfigSection(Tabs.Settings)
+    local Menu = Tabs.Settings:AddLeftGroupbox('Menu')
+    Menu:AddLabel('Open / close'):AddKeyPicker('__theme.menuKey', {
+        Default = 'RightShift',
+        ChangedCallback = function(key)
+            if key.EnumType == Enum.KeyCode then
+                Window:SetToggleKey(key)
+            end
         end,
     })
-    local transfer = profiles:Section('Import / export')
-    local json = transfer:Textbox({ Text = 'Profile JSON', Default = '' })
-    transfer:Button({
-        Text = 'Export to JSON field',
-        Callback = function()
-            json:Set(window:ExportConfig(), true)
+    Menu:AddButton({
+        Text = 'Unload interface',
+        Func = function()
+            Library:Unload()
         end,
     })
-    transfer:Button({
-        Text = 'Import from JSON field',
-        Callback = function()
-            local ok, err = window:ImportConfig(json:Get())
-            window:Notify(ok and 'Imported' or err)
+
+    local About = Tabs.About:AddLeftGroupbox('MintProject')
+    About:AddLabel('Version 0.2 / Reference redesign')
+    About:AddLabel('Black panels. Mint accents. Compact controls.')
+    About:AddButton({
+        Text = 'Show notification',
+        Func = function()
+            Library:Notify('Made for your own interfaces')
         end,
     })
-    local lifecycle = profiles:Section('Session')
-    lifecycle:Button({
-        Text = 'Destroy demo',
-        Callback = function()
-            window:Destroy()
-        end,
-    })
-    return window
+    Options.Intensity:OnChanged(function(value)
+        -- Put application behavior here. UI creation stays above.
+    end)
+    SaveManager:LoadAutoloadConfig()
+    return Window
 end

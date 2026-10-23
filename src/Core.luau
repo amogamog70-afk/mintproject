@@ -2,15 +2,15 @@ local UIS = game:GetService('UserInputService')
 local Tween = game:GetService('TweenService')
 local Core = {}
 Core.Theme = {
-    Background = Color3.fromRGB(9, 23, 14),
-    Panel = Color3.fromRGB(16, 26, 20),
-    Field = Color3.fromRGB(12, 20, 15),
-    Border = Color3.fromRGB(45, 71, 54),
-    Text = Color3.fromRGB(239, 249, 242),
-    Muted = Color3.fromRGB(158, 181, 166),
-    Accent = Color3.fromRGB(109, 227, 160),
-    AccentText = Color3.fromRGB(8, 34, 18),
-    Hover = Color3.fromRGB(31, 53, 39),
+    Background = Color3.fromRGB(10, 12, 12),
+    Panel = Color3.fromRGB(15, 18, 18),
+    Field = Color3.fromRGB(20, 24, 23),
+    Border = Color3.fromRGB(39, 46, 43),
+    Text = Color3.fromRGB(226, 233, 229),
+    Muted = Color3.fromRGB(123, 139, 130),
+    Accent = Color3.fromRGB(116, 227, 174),
+    AccentText = Color3.fromRGB(10, 30, 22),
+    Hover = Color3.fromRGB(29, 36, 32),
     White = Color3.new(1, 1, 1),
 }
 function Core.number(value, min, max, step)
@@ -34,6 +34,9 @@ function Core.new(parent, options)
         Keybinds = {},
         Animations = true,
         Destroyed = false,
+        Library = options._Library,
+        Touch = options.Touch == true or UIS.TouchEnabled == true,
+        ActiveTweens = setmetatable({}, { __mode = 'k' }),
     }
     for key, value in pairs(options.Theme or {}) do
         if self.Theme[key] and typeof(value) == 'Color3' then
@@ -58,7 +61,7 @@ function Core.new(parent, options)
         end
         if n:IsA('TextLabel') or n:IsA('TextButton') or n:IsA('TextBox') then
             n.Font = Enum.Font.Roboto
-            n.TextSize = 14
+            n.TextSize = self.Touch and 14 or 13
             self:Bind(n, 'TextColor3', 'Text')
         end
         if n:IsA('TextButton') then
@@ -98,6 +101,22 @@ function Core.new(parent, options)
         local b = self:New('TextButton', p, parent)
         self:Paint(b, 'Field')
         self:Stroke(b)
+        local bucket
+        local ancestor = parent
+        while ancestor do
+            if ancestor == self.Popup then
+                bucket = self.PopupConnections
+                break
+            end
+            ancestor = ancestor.Parent
+        end
+        self:Connect(b.MouseEnter, function()
+            self:Animate(b, { BackgroundColor3 = self.Theme.Hover })
+        end, bucket)
+        self:Connect(b.MouseLeave, function()
+            local role = self.Bindings[b] and self.Bindings[b].BackgroundColor3 or 'Field'
+            self:Animate(b, { BackgroundColor3 = self.Theme[role] })
+        end, bucket)
         return b
     end
     function self:List(parent, padding, horizontal)
@@ -125,7 +144,13 @@ function Core.new(parent, options)
             end
             return
         end
-        Tween:Create(node, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
+        if self.ActiveTweens[node] then
+            self.ActiveTweens[node]:Cancel()
+        end
+        local tween =
+            Tween:Create(node, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props)
+        self.ActiveTweens[node] = tween
+        tween:Play()
     end
     function self:Callback(callback, ...)
         if not callback then
@@ -138,6 +163,17 @@ function Core.new(parent, options)
     end
     function self:ClosePopup()
         if self.Popup then
+            for node, tween in pairs(self.ActiveTweens) do
+                local ancestor = node
+                while ancestor do
+                    if ancestor == self.Popup then
+                        tween:Cancel()
+                        self.ActiveTweens[node] = nil
+                        break
+                    end
+                    ancestor = ancestor.Parent
+                end
+            end
             self.Drag = nil
             self.DragInput = nil
             self.DragMouse = nil
@@ -197,22 +233,42 @@ function Core.new(parent, options)
                 self:ClosePopup()
             end
         end
-        if input.UserInputType ~= Enum.UserInputType.Keyboard or UIS:GetFocusedTextBox() then
+        if UIS:GetFocusedTextBox() then
             return
         end
-        if self.CaptureKey then
+        if
+            self.CaptureKey
+            and (
+                input.UserInputType == Enum.UserInputType.Keyboard
+                or input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.MouseButton2
+            )
+        then
             local f = self.CaptureKey
             self.CaptureKey = nil
-            f(input.KeyCode)
+            f(input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode or input.UserInputType)
             return
         end
         if not processed then
-            if self.ToggleKey and input.KeyCode == self.ToggleKey and self.ToggleVisible then
+            if
+                input.UserInputType == Enum.UserInputType.Keyboard
+                and self.ToggleKey
+                and self.ToggleKey ~= Enum.KeyCode.Unknown
+                and input.KeyCode == self.ToggleKey
+                and self.ToggleVisible
+            then
                 self.ToggleVisible()
             end
             for control in pairs(self.Keybinds) do
-                if control.Value == input.KeyCode then
-                    self:Callback(control.OnPress)
+                if
+                    control.Value ~= Enum.KeyCode.Unknown
+                    and (control.Value == input.KeyCode or control.Value == input.UserInputType)
+                then
+                    if control.Activate then
+                        control:Activate(true)
+                    else
+                        self:Callback(control.OnPress)
+                    end
                 end
             end
         end
@@ -229,6 +285,13 @@ function Core.new(parent, options)
         end
     end)
     self:Connect(UIS.InputEnded, function(input)
+        for control in pairs(self.Keybinds) do
+            if
+                control.Activate and (control.Value == input.KeyCode or control.Value == input.UserInputType)
+            then
+                control:Activate(false)
+            end
+        end
         if
             input == self.DragInput
             or self.DragMouse and input.UserInputType == Enum.UserInputType.MouseButton1
@@ -284,6 +347,20 @@ function Core.new(parent, options)
         self:ClosePopup()
         self.Drag = nil
         self.CaptureKey = nil
+        for _, tween in pairs(self.ActiveTweens) do
+            tween:Cancel()
+        end
+        table.clear(self.ActiveTweens)
+        if self.Library then
+            for id, control in pairs(self.Controls) do
+                if self.Library.Options[id] == control then
+                    self.Library.Options[id] = nil
+                end
+                if self.Library.Toggles[id] == control then
+                    self.Library.Toggles[id] = nil
+                end
+            end
+        end
         for _, c in ipairs(self.Connections) do
             c:Disconnect()
         end

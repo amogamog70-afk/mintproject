@@ -31,7 +31,7 @@ local function signal()
     }
 end
 local methods = {}
-local events = { InputBegan = true, Activated = true, FocusLost = true }
+local events = { InputBegan = true, Activated = true, FocusLost = true, MouseEnter = true, MouseLeave = true }
 local function instance(class)
     local object = { _native = roblox.Instance.new(class), _signals = {}, _children = {} }
     setmetatable(object, {
@@ -98,6 +98,16 @@ end
 function methods:IsA(class)
     return self._native:IsA(class)
 end
+function methods:GetChildren()
+    return table.clone(self._children)
+end
+function methods:FindFirstChildWhichIsA(class)
+    for _, child in ipairs(self._children) do
+        if child:IsA(class) then
+            return child
+        end
+    end
+end
 function methods:GetPropertyChangedSignal(property)
     self._signals[property] = self._signals[property] or signal()
     return self._signals[property]
@@ -124,6 +134,7 @@ local services = {
     TweenService = {
         Create = function(_, node, _, props)
             return {
+                Cancel = function() end,
                 Play = function()
                     for k, v in pairs(props) do
                         node[k] = v
@@ -188,6 +199,14 @@ for _, file in ipairs({
     'src/Window.luau',
     'src/Components.luau',
     'src/init.luau',
+    'src/Logo.luau',
+    'src/Storage.luau',
+    'src/ThemeManager.luau',
+    'src/SaveManager.luau',
+    'addons/ThemeManager.lua',
+    'addons/SaveManager.lua',
+    'Library.lua',
+    'Example.lua',
     'examples/Demo.luau',
     'examples/Studio.client.luau',
     'dist/MintProject.lua',
@@ -297,6 +316,15 @@ check(#multi:Get() == 3, 'Select all')
 findButton('Clear').Activated:Fire()
 check(#multi:Get() == 0, 'Clear selection')
 window.Context:ClosePopup()
+local stableConnections = #window.Context.Connections
+for i = 1, 12 do
+    dropdownButton.Activated:Fire()
+    window.Context:ClosePopup()
+end
+check(
+    #window.Context.Connections == stableConnections,
+    'Repeated dropdowns do not accumulate hover listeners'
+)
 for _, node in ipairs(all) do
     if node:IsA('TextLabel') and node.Text == 'Accent' and node.Parent then
         for _, child in ipairs(node.Parent._children) do
@@ -345,6 +373,91 @@ window:Notify('Test')
 flush()
 window:SetTheme({ Accent = roblox.Color3.new(1, 0, 0) })
 check(window.Context.Theme.Accent.R == 1, 'Theme can change after construction')
+local linked = section:AddToggle('linked', { Text = 'Linked', Default = true })
+local linkedKey =
+    linked:AddKeyPicker('linked.key', { Default = 'F9', Mode = 'Toggle', SyncToggleState = true })
+check(
+    library.Toggles.linked == linked and library.Options['linked.key'] == linkedKey,
+    'Public control registries'
+)
+linkedKey:Activate(true)
+check(not linked.Value, 'Keybind toggles its linked control')
+linked:Set(true)
+linkedKey:Activate(true)
+check(not linked.Value, 'Mouse and keybind states stay synchronized')
+local changeCount = 0
+slider:OnChanged(function()
+    changeCount += 1
+end)
+slider:SetValue(28)
+check(changeCount == 1 and slider.Value == 28, 'OnChanged and SetValue aliases')
+check(window.ColumnCount == 3, 'Wide desktop uses three columns')
+local disk, folders = {}, {}
+environment.readfile = function(path)
+    assert(disk[path], 'Missing file')
+    return disk[path]
+end
+environment.writefile = function(path, value)
+    disk[path] = value
+end
+environment.isfile = function(path)
+    return disk[path] ~= nil
+end
+environment.isfolder = function(path)
+    return folders[path] == true
+end
+environment.makefolder = function(path)
+    folders[path] = true
+end
+environment.listfiles = function(folder)
+    local result = {}
+    for path in pairs(disk) do
+        if path:sub(1, #folder + 1) == folder .. '/' then
+            table.insert(result, path)
+        end
+    end
+    return result
+end
+environment.delfile = function(path)
+    disk[path] = nil
+end
+local manager = load(fs.readFile('addons/SaveManager.lua')):SetLibrary(library)
+check(manager.Storage.Persistent, 'File backend detection')
+check(manager:Save('Default'), 'Config writes and verifies a local file')
+slider:Set(10)
+check(manager:Load('Default') and slider.Value == 28, 'Config restores state from file')
+check(manager:SetAutoloadConfig('Default'), 'Autoload records selected config')
+slider:Set(12)
+local nextManager = load(fs.readFile('addons/SaveManager.lua')):SetLibrary(library)
+check(nextManager:LoadAutoloadConfig() and slider.Value == 28, 'New manager restores config across sessions')
+check(
+    not manager:Save('../escape') and not manager:Load(nil),
+    'Manager rejects invalid names without crashing'
+)
+local themeManager = load(fs.readFile('addons/ThemeManager.lua')):SetLibrary(library)
+check(
+    themeManager:ApplyTheme('Ice') and library.Theme.Accent == roblox.Color3.fromHex('82C7F0'),
+    'Preset theme applies to the library'
+)
+check(themeManager:SaveCustomTheme('Custom'), 'Custom palette saves to file')
+themeManager:ApplyTheme('Mint')
+check(
+    themeManager:ApplyTheme('Custom') and library.Theme.Accent == roblox.Color3.fromHex('82C7F0'),
+    'Custom palette roundtrip'
+)
+check(not themeManager:SaveCustomTheme('Mint'), 'Built-in palettes cannot be overwritten')
+local camera = environment.workspace.CurrentCamera
+camera.ViewportSize = roblox.Vector2.new(390, 844)
+local phoneWindow = library:CreateWindow({ Parent = instance('PlayerGui'), Touch = true })
+local phoneTab = phoneWindow:AddTab('Phone')
+local phoneGroup = phoneTab:AddRightGroupbox('Right')
+check(
+    phoneWindow.ColumnCount == 1 and phoneGroup.Root.Parent == phoneTab.Columns[1],
+    'Phone stacks right groups into one column'
+)
+check(phoneWindow.Root.Size.X.Offset == 366, 'Phone layout keeps readable text without scaling the UI')
+phoneWindow:Destroy()
+camera.ViewportSize = roblox.Vector2.new(1280, 720)
 local gui = window.Context.Gui
 library:Destroy()
 flush()
@@ -357,8 +470,120 @@ services.Players.LocalPlayer = {
         return instance('PlayerGui')
     end,
 }
+environment.loadstring = function(source)
+    return luau.load(source:gsub('Enum.KeyCode.Unknown', 'Enum.KeyCode.None'), { environment = environment })
+end
+environment.game.HttpGet = function(_, url)
+    local path = url:match('https://raw%.githubusercontent%.com/amogamog70%-afk/mintproject/main/(.+)')
+    assert(path, 'Unexpected network request in the editable example')
+    return fs.readFile(path)
+end
+local editable = load(fs.readFile('Example.lua'))
+check(
+    #editable.Tabs == 4 and editable.Tabs.Settings ~= nil,
+    'Editable example runs library and manager loaders'
+)
+local editableGui = editable.Context.Gui
+local editableAgain = load(fs.readFile('Example.lua'))
+check(not editableGui.Parent, 'Rerunning the editable example unloads its previous instance')
+editableAgain:Destroy()
+flush()
+for _, name in ipairs({ 'readfile', 'writefile', 'isfile', 'isfolder', 'makefolder', 'listfiles', 'delfile' }) do
+    environment[name] = nil
+end
 local demo = load(fs.readFile('dist/Demo.lua'))
 check(#demo.Tabs == 4, 'Standalone demo creates four tabs')
+if require('@lune/process').args[1] == '--preview' then
+    local function encode(value)
+        local kind = typeof(value)
+        if kind == 'Color3' then
+            return '#' .. value:ToHex()
+        elseif kind == 'UDim2' then
+            return { value.X.Scale, value.X.Offset, value.Y.Scale, value.Y.Offset }
+        elseif kind == 'UDim' then
+            return { value.Scale, value.Offset }
+        elseif kind == 'Vector2' then
+            return { value.X, value.Y }
+        elseif kind == 'EnumItem' then
+            return value.Name
+        elseif kind == 'ColorSequence' or kind == 'NumberSequence' then
+            local points = {}
+            for _, point in ipairs(value.Keypoints) do
+                table.insert(points, { point.Time, encode(point.Value) })
+            end
+            return points
+        elseif type(value) == 'number' or type(value) == 'string' or type(value) == 'boolean' then
+            return value
+        end
+        return nil
+    end
+    local properties = {
+        'Name',
+        'Size',
+        'Position',
+        'AnchorPoint',
+        'Visible',
+        'BackgroundColor3',
+        'BackgroundTransparency',
+        'LayoutOrder',
+        'Rotation',
+        'ZIndex',
+        'AutomaticSize',
+        'ClipsDescendants',
+        'GroupTransparency',
+        'Text',
+        'TextColor3',
+        'TextSize',
+        'TextXAlignment',
+        'TextYAlignment',
+        'TextWrapped',
+        'TextTruncate',
+        'Font',
+        'PlaceholderText',
+        'ScrollBarThickness',
+        'CornerRadius',
+        'Padding',
+        'FillDirection',
+        'HorizontalAlignment',
+        'VerticalAlignment',
+        'PaddingTop',
+        'PaddingBottom',
+        'PaddingLeft',
+        'PaddingRight',
+        'Color',
+        'Thickness',
+        'Transparency',
+    }
+    local function tree(node)
+        local data = { class = node._native.ClassName, props = {}, children = {} }
+        for _, property in ipairs(properties) do
+            local ok, value = pcall(function()
+                return node._native[property]
+            end)
+            if ok then
+                data.props[property] = encode(value)
+            end
+        end
+        for _, child in ipairs(node._children) do
+            table.insert(data.children, tree(child))
+        end
+        return data
+    end
+    local function snapshot(window, name, width, height)
+        fs.writeFile(
+            '.validation/' .. name .. '.json',
+            serde.encode('json', { width = width, height = height, tree = tree(window.Context.Gui) })
+        )
+    end
+    snapshot(demo, 'desktop-main', 1280, 720)
+    demo.Tabs.Settings:Select()
+    snapshot(demo, 'desktop-settings', 1280, 720)
+    demo:Destroy()
+    environment.workspace.CurrentCamera.ViewportSize = roblox.Vector2.new(390, 844)
+    input.TouchEnabled = true
+    demo = load(fs.readFile('dist/Demo.lua'))
+    snapshot(demo, 'mobile-main', 390, 844)
+end
 demo:Destroy()
 flush()
 print(
