@@ -1969,7 +1969,7 @@ function Window.new(options, profiles)
     local close = ctx:Button(
         '×',
         header,
-        { Position = UDim2.new(1, -38, 0, 12), Size = UDim2.fromOffset(25, 25), TextSize = 18 }
+        { Position = UDim2.new(1, -38, 0, 12), Size = UDim2.fromOffset(25, 25), TextSize = 18, Modal = true }
     )
     ctx:Connect(close.Activated, function()
         self:SetVisible(false)
