@@ -64,16 +64,23 @@ end
 local function row(ctx, parent, text, height, description)
     local frame = ctx:New('Frame', {
         Name = text,
-        Size = UDim2.new(1, 0, 0, height or (ctx.Touch and 34 or 26)),
+        Size = UDim2.new(1, 0, 0, height or (ctx.Touch and 42 or 36)),
         BackgroundTransparency = 1,
     }, parent)
-    ctx:Text(text, frame, { Size = UDim2.new(1, -80, 0, 22), TextTruncate = Enum.TextTruncate.AtEnd })
+    ctx:Text(text, frame, {
+        Position = UDim2.fromOffset(description and 22 or 0, 4),
+        Size = UDim2.new(1, description and -112 or -90, 0, 28),
+        TextSize = 13,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    })
     if description then
-        local info = ctx:Button(
-            'i',
-            frame,
-            { Position = UDim2.new(1, -18, 0, 2), Size = UDim2.fromOffset(16, 16), TextSize = 10, ZIndex = 5 }
-        )
+        local info = ctx:Button('i', frame, {
+            Position = UDim2.fromOffset(0, 10),
+            Size = UDim2.fromOffset(15, 15),
+            TextSize = 10,
+            ZIndex = 5,
+            BackgroundTransparency = 0.5,
+        })
         ctx:Connect(info.Activated, function()
             if ctx.PopupAnchor == info then
                 ctx:ClosePopup()
@@ -91,7 +98,7 @@ local function row(ctx, parent, text, height, description)
     return frame
 end
 local function fieldProps()
-    return { Position = UDim2.fromOffset(0, 22), Size = UDim2.new(1, 0, 0, 27) }
+    return { Position = UDim2.new(0.44, 0, 0, 3), Size = UDim2.new(0.56, 0, 0, 30) }
 end
 local function aliasOptions(id, options)
     options = table.clone(options or {})
@@ -116,28 +123,37 @@ function Components.section(ctx, parent, title)
         parent
     )
     ctx:Paint(root, 'Panel')
-    ctx:Stroke(root)
-    ctx:New('UICorner', { CornerRadius = UDim.new(0, 2) }, root)
     ctx:List(root, 0)
     local heading = ctx:New('TextButton', {
         Name = 'GroupHeading',
         Text = title,
-        TextSize = 12,
+        TextSize = 13,
         TextXAlignment = Enum.TextXAlignment.Left,
-        Size = UDim2.new(1, 0, 0, 30),
+        Size = UDim2.new(1, 0, 0, 38),
         BackgroundTransparency = 1,
     }, root)
     ctx:Padding(heading, 11)
-    ctx:Bind(heading, 'TextColor3', 'Accent')
-    local symbol = ctx:Text(
-        '−',
-        heading,
-        { Position = UDim2.new(1, -17, 0, 0), Size = UDim2.fromOffset(12, 28), TextSize = 12 }
+    ctx:Bind(heading, 'TextColor3', 'Text')
+    local symbol = ctx:New('Frame', {
+        Name = 'CollapseIcon',
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(1, -17, 0.5, 0),
+        Size = UDim2.fromOffset(10, 10),
+        BackgroundTransparency = 1,
+    }, heading)
+    local minus =
+        ctx:New('Frame', { Position = UDim2.fromOffset(0, 4), Size = UDim2.fromOffset(10, 2) }, symbol)
+    local plus = ctx:New(
+        'Frame',
+        { Position = UDim2.fromOffset(4, 0), Size = UDim2.fromOffset(2, 10), Visible = false },
+        symbol
     )
-    ctx:Bind(symbol, 'TextColor3', 'Muted')
+    ctx:Paint(minus, 'Text')
+    ctx:Paint(plus, 'Text')
     local line =
-        ctx:New('Frame', { Position = UDim2.fromOffset(11, 29), Size = UDim2.new(1, -22, 0, 1) }, root)
+        ctx:New('Frame', { Position = UDim2.fromOffset(12, 37), Size = UDim2.new(1, -24, 0, 1) }, root)
     ctx:Paint(line, 'Border')
+    line.BackgroundTransparency = 0.55
     -- The divider belongs inside the heading so the group's vertical layout has only two items.
     line.Parent = heading
     local body = ctx:New('Frame', {
@@ -147,8 +163,8 @@ function Components.section(ctx, parent, title)
         AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundTransparency = 1,
     }, root)
-    ctx:Padding(body, 11)
-    ctx:List(body, 5)
+    ctx:Padding(body, 12)
+    ctx:List(body, 7)
     local section
     section = setmetatable({ Root = root, Body = body, Expanded = true }, {
         __index = function(_, name)
@@ -163,7 +179,8 @@ function Components.section(ctx, parent, title)
     function section:SetExpanded(value)
         self.Expanded = value == true
         body.Visible = self.Expanded
-        symbol.Text = self.Expanded and '−' or '+'
+        line.Visible = self.Expanded
+        plus.Visible = not self.Expanded
     end
     ctx:Connect(heading.Activated, function()
         section:SetExpanded(not section.Expanded)
@@ -178,32 +195,39 @@ function Components.section(ctx, parent, title)
         })
     end
     function section:Button(options)
-        local button = ctx:Button(
-            options.Text or 'Button',
-            body,
-            { Name = options.Text or 'Button', Size = UDim2.new(1, 0, 0, ctx.Touch and 34 or 28) }
-        )
+        local button = ctx:Button(options.Text or 'Button', body, {
+            Name = options.Text or 'Button',
+            Size = UDim2.new(1, 0, 0, ctx.Touch and 40 or 34),
+            TextSize = 13,
+        })
         if options.Primary then
-            ctx:Paint(button, 'Accent')
-            ctx:Bind(button, 'TextColor3', 'AccentText')
+            ctx:Paint(button, 'Hover')
+            for _, child in ipairs(button:GetChildren()) do
+                if child:IsA('UIStroke') then
+                    ctx:Bind(child, 'Color', 'Accent')
+                    child.Transparency = 0.45
+                end
+            end
+            local marker = ctx:New(
+                'Frame',
+                { Position = UDim2.fromOffset(12, 11), Size = UDim2.fromOffset(3, 12) },
+                button
+            )
+            ctx:Paint(marker, 'Accent')
+            ctx:Corner(marker, 2)
         end
-        ctx:New(
-            'UIGradient',
-            { Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(210, 222, 215)), Rotation = 90 },
-            button
-        )
         ctx:Connect(button.Activated, function()
             ctx:Callback(options.Callback or options.Func)
         end)
         return button
     end
     local function attachments(owner)
-        owner.Slots = 0
+        owner.Slots = owner.RightInset or 0
         function owner:AddKeyPicker(id, settings)
             settings = aliasOptions(id, settings)
             settings._Host = self.Root
-            self.Slots += 1
-            settings._Offset = self.Slots * 78
+            self.Slots += 70
+            settings._Offset = self.Slots
             settings.SyncOwner = self
             settings.ActivationCallback = settings.Callback
             settings.Callback = settings.ChangedCallback
@@ -212,42 +236,60 @@ function Components.section(ctx, parent, title)
                 binding.State = self.Value
                 self:OnChanged(function(value)
                     binding.State = value
+                    if ctx.UpdateKeybinds then
+                        ctx.UpdateKeybinds()
+                    end
                 end)
+            end
+            if ctx.UpdateKeybinds then
+                ctx.UpdateKeybinds()
+            end
+            local label = self.Root:FindFirstChildWhichIsA('TextLabel')
+            if label then
+                label.Size = UDim2.new(1, -self.Slots - 12, 0, 28)
             end
             return binding
         end
         function owner:AddColorPicker(id, settings)
             settings = aliasOptions(id, settings)
             settings._Host = self.Root
-            self.Slots += 1
-            settings._Offset = self.Slots * 30
+            self.Slots += 32
+            settings._Offset = self.Slots
+            local label = self.Root:FindFirstChildWhichIsA('TextLabel')
+            if label then
+                label.Size = UDim2.new(1, -self.Slots - 12, 0, 28)
+            end
             return section:ColorPicker(settings)
         end
         return owner
     end
     function section:Toggle(options)
         local frame = row(ctx, body, options.Text or 'Toggle', nil, options.Description)
-        for _, child in ipairs(frame:GetChildren()) do
-            if child:IsA('TextLabel') then
-                child.Position = UDim2.fromOffset(23, 0)
-                child.Size = UDim2.new(1, -120, 0, 22)
-            end
-        end
-        local button = ctx:New(
-            'TextButton',
-            { Text = '', Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 },
-            frame
-        )
-        local box =
-            ctx:New('Frame', { Position = UDim2.fromOffset(0, 4), Size = UDim2.fromOffset(13, 13) }, button)
-        ctx:Stroke(box)
-        local fill =
-            ctx:New('Frame', { Position = UDim2.fromOffset(3, 3), Size = UDim2.fromOffset(7, 7) }, box)
-        ctx:Paint(fill, 'Accent')
-        local control = register(ctx, options, { Value = options.Default == true, Root = frame })
+        local button = ctx:New('TextButton', {
+            Text = '',
+            Position = UDim2.new(1, -38, 0, 8),
+            Size = UDim2.fromOffset(38, 20),
+            BackgroundTransparency = 1,
+        }, frame)
+        local rail = ctx:New('Frame', { Size = UDim2.fromScale(1, 1) }, button)
+        ctx:Corner(rail, 10)
+        ctx:Stroke(rail)
+        ctx:Gradient(rail)
+        local thumb =
+            ctx:New('Frame', { Position = UDim2.fromOffset(4, 4), Size = UDim2.fromOffset(12, 12) }, rail)
+        ctx:Corner(thumb, 6)
+        ctx:Gradient(thumb)
+        local control =
+            register(ctx, options, { Value = options.Default == true, Root = frame, RightInset = 48 })
         function control:Refresh()
-            ctx:Paint(box, self.Value and 'Hover' or 'Field')
-            fill.Visible = self.Value
+            ctx.Bindings[rail] = { BackgroundColor3 = self.Value and 'Hover' or 'Field' }
+            ctx.Bindings[thumb] = { BackgroundColor3 = self.Value and 'Accent' or 'Text' }
+            ctx:Animate(rail, { BackgroundColor3 = ctx.Theme[self.Value and 'Hover' or 'Field'] }, 0.32)
+            ctx:Animate(thumb, {
+                Position = UDim2.fromOffset(self.Value and 22 or 4, 4),
+                BackgroundColor3 = ctx.Theme[self.Value and 'Accent' or 'Text'],
+                BackgroundTransparency = self.Value and 0 or 0.5,
+            }, 0.32)
         end
         function control:Set(value, silent)
             if type(value) ~= 'boolean' then
@@ -268,13 +310,14 @@ function Components.section(ctx, parent, title)
         return attachments(control)
     end
     function section:Textbox(options)
-        local frame = row(ctx, body, options.Text or 'Text', 54, options.Description)
+        local frame = row(ctx, body, options.Text or 'Text', ctx.Touch and 44 or 38, options.Description)
         local props = fieldProps()
         props.Text = tostring(options.Default or '')
         props.ClearTextOnFocus = false
         props.PlaceholderText = options.Placeholder or ''
         local input = ctx:New('TextBox', props, frame)
         ctx:Paint(input, 'Field')
+        ctx:Corner(input, 6)
         ctx:Stroke(input)
         local control = register(ctx, options, { Value = props.Text, Root = frame })
         function control:Set(value, silent)
@@ -306,33 +349,35 @@ function Components.section(ctx, parent, title)
             'Slider Max must exceed Min'
         )
         assert(type(step) == 'number' and step >= 0, 'Slider Step must be nonnegative')
-        local frame = row(ctx, body, options.Text or 'Slider', ctx.Touch and 52 or 44, options.Description)
+        local frame = row(ctx, body, options.Text or 'Slider', ctx.Touch and 62 or 56, options.Description)
         local hit = ctx:New('Frame', {
-            Position = UDim2.fromOffset(0, 20),
+            Position = UDim2.fromOffset(0, 28),
             Size = UDim2.new(1, 0, 0, 22),
             BackgroundTransparency = 1,
             Active = true,
         }, frame)
         local track =
-            ctx:New('Frame', { Position = UDim2.fromOffset(0, 7), Size = UDim2.new(1, 0, 0, 6) }, hit)
+            ctx:New('Frame', { Position = UDim2.fromOffset(0, 7), Size = UDim2.new(1, 0, 0, 8) }, hit)
         ctx:Paint(track, 'Field')
-        ctx:Stroke(track)
+        ctx:Corner(track, 4)
         local fill = ctx:New('Frame', { Size = UDim2.new() }, track)
         ctx:Paint(fill, 'Accent')
+        ctx:Gradient(fill)
         local thumb =
-            ctx:New('Frame', { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(9, 12) }, track)
-        ctx:Paint(thumb, 'Panel')
-        ctx:Stroke(thumb)
-        ctx:New('UICorner', { CornerRadius = UDim.new(0, 3) }, thumb)
+            ctx:New('Frame', { AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(12, 12) }, track)
+        ctx:Paint(thumb, 'Accent')
+        ctx:Corner(thumb, 6)
         local valueBox = ctx:New('TextBox', {
-            Position = UDim2.new(1, options.Description and -86 or -64, 0, 0),
-            Size = UDim2.fromOffset(64, 21),
-            BackgroundTransparency = 1,
+            Position = UDim2.new(1, -62, 0, 3),
+            Size = UDim2.fromOffset(62, 24),
+            BackgroundTransparency = 0,
             ClearTextOnFocus = false,
-            TextXAlignment = Enum.TextXAlignment.Right,
-            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            TextSize = 12,
         }, frame)
-        ctx:Bind(valueBox, 'TextColor3', 'Muted')
+        ctx:Paint(valueBox, 'Field')
+        ctx:Corner(valueBox, 6)
+        ctx:Bind(valueBox, 'TextColor3', 'Text')
         local control = register(ctx, options, {
             Value = Core.number(options.Default or minimum, minimum, maximum, step) or minimum,
             Root = frame,
@@ -376,30 +421,32 @@ function Components.section(ctx, parent, title)
     function section:RangeSlider(options)
         local minimum, maximum, step = options.Min or 0, options.Max or 100, options.Step or 1
         assert(maximum > minimum and step >= 0, 'Invalid range')
-        local frame = row(ctx, body, options.Text or 'Range', 46, options.Description)
+        local frame = row(ctx, body, options.Text or 'Range', 58, options.Description)
         local track = ctx:New(
             'Frame',
-            { Position = UDim2.fromOffset(0, 27), Size = UDim2.new(1, 0, 0, 8), Active = true },
+            { Position = UDim2.fromOffset(0, 38), Size = UDim2.new(1, 0, 0, 8), Active = true },
             frame
         )
         ctx:Paint(track, 'Field')
-        ctx:Stroke(track)
+        ctx:Corner(track, 4)
         local fill = ctx:New('Frame', {}, track)
         ctx:Paint(fill, 'Accent')
+        ctx:Gradient(fill)
         local handles = {}
         for i = 1, 2 do
             handles[i] = ctx:New(
                 'Frame',
-                { Size = UDim2.fromOffset(8, 14), AnchorPoint = Vector2.new(0.5, 0.5) },
+                { Size = UDim2.fromOffset(12, 12), AnchorPoint = Vector2.new(0.5, 0.5) },
                 track
             )
             ctx:Paint(handles[i], 'Accent')
+            ctx:Corner(handles[i], 6)
         end
         local inputs = {}
         for i = 1, 2 do
             inputs[i] = ctx:New('TextBox', {
                 Position = UDim2.new(1, i == 1 and -112 or -54, 0, 0),
-                Size = UDim2.fromOffset(54, 20),
+                Size = UDim2.fromOffset(48, 24),
                 ClearTextOnFocus = false,
                 BackgroundTransparency = 1,
                 TextSize = 11,
@@ -463,10 +510,12 @@ function Components.section(ctx, parent, title)
     end
     function section:Dropdown(options)
         local entries, allowed = {}, {}
-        local frame = row(ctx, body, options.Text or 'Select', 54, options.Description)
+        local frame = row(ctx, body, options.Text or 'Select', ctx.Touch and 44 or 38, options.Description)
         local button = ctx:Button('', frame, fieldProps())
         button.TextTruncate = Enum.TextTruncate.AtEnd
         button.TextSize = 12
+        button.TextXAlignment = Enum.TextXAlignment.Left
+        ctx:Padding(button, 10)
         local control = register(ctx, options, { Value = options.Multi and {} or nil, Root = frame })
         function control:Refresh()
             button.Text = (
@@ -559,8 +608,16 @@ function Components.section(ctx, parent, title)
                 for value, b in pairs(rows) do
                     local selected = options.Multi and table.find(control.Value, value) ~= nil
                         or not options.Multi and control.Value == value
-                    b.Text = (selected and '✓  ' or '    ') .. value
-                    ctx:Bind(b, 'TextColor3', selected and 'Accent' or 'Text')
+                    b.Text = '  ' .. value
+                    ctx:Paint(b, selected and 'Hover' or 'Field')
+                    b.BackgroundTransparency = selected and 0 or 0.6
+                    b.TextTransparency = selected and 0 or 0.35
+                    for _, child in ipairs(b:GetChildren()) do
+                        if child:IsA('UIStroke') then
+                            ctx:Bind(child, 'Color', selected and 'Accent' or 'Border')
+                            child.Transparency = selected and 0.45 or 1
+                        end
+                    end
                 end
             end
             for _, value in ipairs(entries) do
@@ -633,26 +690,89 @@ function Components.section(ctx, parent, title)
     function section:Keybind(options)
         local frame = options._Host or row(ctx, body, options.Text or 'Keybind', nil, options.Description)
         local button = ctx:Button('', frame, {
-            Position = UDim2.new(1, -(options._Offset or 84), 0, 1),
-            Size = UDim2.fromOffset(76, 22),
+            Name = 'Keybind',
+            Position = UDim2.new(1, -(options._Offset or 68), 0, 7),
+            Size = UDim2.fromOffset(66, 24),
             TextSize = 11,
         })
         local control = register(ctx, options, {
             Value = Enum.KeyCode.Unknown,
             Root = frame,
+            Button = button,
+            Mode = options.Mode or 'Toggle',
             State = options.Mode == 'Always',
+            Name = options.Text or (options.SyncOwner and options.SyncOwner.Root.Name) or 'Keybind',
+            HideFromList = options.HideFromList == true or options.NoModes == true,
+            NoModes = options.NoModes == true,
             OnPress = options.OnPress,
         })
         function control:Refresh()
-            local names = { MouseButton1 = 'MB1', MouseButton2 = 'MB2', Unknown = 'None' }
-            button.Text = names[self.Value.Name] or self.Value.Name
+            local names = {
+                MouseButton1 = 'MB1',
+                MouseButton2 = 'MB2',
+                Unknown = 'None',
+                LeftShift = 'LShift',
+                RightShift = 'RShift',
+                LeftControl = 'LCtrl',
+                RightControl = 'RCtrl',
+            }
+            self.KeyName = names[self.Value.Name] or self.Value.Name
+            button.Text = self.KeyName
+            if ctx.UpdateKeybinds then
+                ctx.UpdateKeybinds()
+            end
+        end
+        function control:GetState()
+            return self.State
+        end
+        function control:SetState(value)
+            local changed = self.State ~= value
+            self.State = value
+            if changed then
+                if options.SyncToggleState and options.SyncOwner and options.SyncOwner.Set then
+                    options.SyncOwner:Set(value)
+                end
+                ctx:Callback(options.ActivationCallback, value)
+            end
+            if ctx.UpdateKeybinds then
+                ctx.UpdateKeybinds()
+            end
+        end
+        function control:SetMode(mode, silent)
+            if self.NoModes then
+                return false
+            end
+            if type(mode) ~= 'string' then
+                return false
+            end
+            mode = mode:sub(1, 1):upper() .. mode:sub(2):lower()
+            if mode ~= 'Hold' and mode ~= 'Toggle' and mode ~= 'Always' then
+                return false
+            end
+            if self.Mode == mode then
+                return true
+            end
+            self.Mode = mode
+            if not silent then
+                self:SetState(mode == 'Always')
+                ctx:Callback(options.ModeChangedCallback, mode)
+            end
+            self:Refresh()
+            return true
         end
         function control:Set(value, silent)
             if type(value) == 'string' then
+                local aliases = {
+                    MB1 = 'MouseButton1',
+                    MB2 = 'MouseButton2',
+                    LShift = 'LeftShift',
+                    RShift = 'RightShift',
+                }
+                local name = aliases[value] or value:gsub('%s+', '')
                 local ok, key = pcall(function()
-                    return value == 'MB1' and Enum.UserInputType.MouseButton1
-                        or value == 'MB2' and Enum.UserInputType.MouseButton2
-                        or Enum.KeyCode[value]
+                    return name == 'MouseButton1' and Enum.UserInputType.MouseButton1
+                        or name == 'MouseButton2' and Enum.UserInputType.MouseButton2
+                        or Enum.KeyCode[name]
                 end)
                 value = ok and key or nil
             end
@@ -666,6 +786,9 @@ function Components.section(ctx, parent, title)
             then
                 return false
             end
+            if self.Mode == 'Hold' and self.State and value ~= self.Value then
+                self:SetState(false)
+            end
             self.Value = value
             self:Refresh()
             if not silent then
@@ -674,33 +797,60 @@ function Components.section(ctx, parent, title)
             return true
         end
         function control:Activate(down)
-            local old = self.State
-            if options.Mode == 'Hold' then
-                self.State = down
-            elseif options.Mode ~= 'Always' and down then
-                self.State = not self.State
+            if self.Mode == 'Hold' then
+                self:SetState(down)
+            elseif self.Mode == 'Toggle' and down then
+                self:SetState(not self.State)
+            elseif self.Mode == 'Always' then
+                self:SetState(true)
             end
             if down then
                 ctx:Callback(self.OnPress)
             end
-            if old ~= self.State then
-                if options.SyncToggleState and options.SyncOwner and options.SyncOwner.Set then
-                    options.SyncOwner:Set(self.State)
-                end
-                ctx:Callback(options.ActivationCallback, self.State)
-            end
         end
-        function control:GetState()
-            return self.State
-        end
+        assert(
+            control.Mode == 'Hold' or control.Mode == 'Toggle' or control.Mode == 'Always',
+            'Invalid keybind mode'
+        )
         control:Set(options.Default or Enum.KeyCode.Unknown, true)
         ctx.Keybinds[control] = true
         ctx:Connect(button.Activated, function()
+            ctx:ClosePopup()
             button.Text = '…'
             ctx.CaptureKey = function(key)
                 control:Set(key == Enum.KeyCode.Escape and Enum.KeyCode.Unknown or key)
             end
         end)
+        ctx:Connect(button.InputBegan, function(input)
+            if
+                input.UserInputType ~= Enum.UserInputType.MouseButton2
+                or control.NoModes
+                or ctx.MenuClosing
+            then
+                return
+            end
+            ctx.CaptureKey = nil
+            control:Refresh()
+            if ctx.PopupAnchor == button then
+                ctx:ClosePopup()
+                return
+            end
+            local popup = ctx:OpenPopup(button, 132, 102)
+            ctx:Padding(popup, 6)
+            ctx:List(popup, 3)
+            for _, mode in ipairs({ 'Hold', 'Toggle', 'Always' }) do
+                local item = ctx:Button(mode, popup, { Size = UDim2.new(1, 0, 0, 28), ZIndex = 102 })
+                ctx:Paint(item, control.Mode == mode and 'Hover' or 'Field')
+                item.TextTransparency = control.Mode == mode and 0 or 0.3
+                ctx:Connect(item.Activated, function()
+                    control:SetMode(mode)
+                    ctx:ClosePopup()
+                end, ctx.PopupConnections)
+            end
+        end)
+        if ctx.UpdateKeybinds then
+            ctx.UpdateKeybinds()
+        end
         return control
     end
     function section:AddToggle(id, options)
@@ -739,15 +889,23 @@ function Components.section(ctx, parent, title)
         return line
     end
     function section:ColorPicker(options)
-        local frame = options._Host or row(ctx, body, options.Text or 'Color', 26, options.Description)
+        local frame = options._Host or row(ctx, body, options.Text or 'Color', 36, options.Description)
         local button = ctx:Button(
             '',
             frame,
-            { Position = UDim2.new(1, -(options._Offset or 28), 0, 3), Size = UDim2.fromOffset(26, 18) }
+            { Position = UDim2.new(1, -(options._Offset or 28), 0, 6), Size = UDim2.fromOffset(24, 24) }
         )
-        local swatch =
-            ctx:New('Frame', { Position = UDim2.fromOffset(5, 5), Size = UDim2.new(1, -10, 1, -10) }, button)
-        local control = register(ctx, options, { Value = options.Default or ctx.Theme.Accent })
+        button.BackgroundTransparency = 1
+        for _, child in ipairs(button:GetChildren()) do
+            child:Destroy()
+        end
+        local swatch = ctx:New('Frame', { Name = 'Swatch', Size = UDim2.fromScale(1, 1) }, button)
+        ctx:New('UICorner', { CornerRadius = UDim.new(0, 4) }, swatch)
+        local control = register(
+            ctx,
+            options,
+            { Value = options.Default or ctx.Theme.Accent, ThemeRole = options.ThemeRole, Root = frame }
+        )
         function control:Refresh()
             swatch.BackgroundColor3 = self.Value
         end

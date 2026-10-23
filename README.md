@@ -1,8 +1,8 @@
 # MintProject
 
-A compact Roblox UI library with a near-black palette, mint accents, thin borders and column-based group boxes. Version **0.2.0**.
+A compact Roblox UI library with a flat near-black palette, mint accents, square controls and column-based groups. Version **0.4.0**.
 
-The redesign follows the supplied Aurora/Astra references, using the selected upper-left M-and-leaf symbol. The library and managers are original implementations; the public API follows familiar Linoria-style naming. This is not a drop-in implementation of every Linoria feature.
+MintProject uses a standalone mint-leaf logo, centered branding, desktop side navigation and compact cards. Gradients are restricted to buttons and control fills. The library and managers are original implementations; the public API follows familiar Linoria-style naming. This is not a drop-in implementation of every Linoria feature.
 
 ## Quick demo
 
@@ -12,7 +12,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/amogamog70-afk/mintpr
 
 [Read the editable example](Example.lua): it starts by loading the library and managers, then defines the window, tabs, groups and controls directly below those links. The previous standalone [dist/Demo.lua](dist/Demo.lua) entry still works and contains everything in one download.
 
-**Right Shift** or the **M** button opens/closes the menu. Drag the title bar to move it.
+**Left Shift**, **Right Shift**, or the **leaf button** opens/closes the demo menu. Drag the title bar to move the window freely, including beyond the screen edges. Drag the leaf button to move it without opening/closing the menu. The Window settings provide two editable menu shortcuts.
 
 Remote loading requires a client environment that provides `loadstring` and `game:HttpGet`. For standard Roblox LocalScripts, install the ModuleScripts instead.
 
@@ -26,8 +26,7 @@ local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
 local Window = Library:CreateWindow({
     Title = "MintProject",
-    Subtitle = "MY PROJECT",
-    Columns = 3,
+    Columns = 2,
     AutoShow = true,
 })
 
@@ -72,13 +71,15 @@ SaveManager:LoadAutoloadConfig()
 
 ## Layout and appearance
 
-- Three columns above 900 px window width; two above 650 px; one on narrower screens. Groups move between columns without rebuilding controls.
+- Two columns by default, one on narrower screens. Optional three-column layouts use `Columns = 3` when content width permits. Groups move between columns without rebuilding controls.
 - No font shrinking on phones. Touch controls have larger hit areas; tabs can scroll horizontally.
-- Opaque black panels, small corner radii, thin borders, understated gradients and mint accents.
-- Header-only dragging, viewport resize handling and camera replacement handling.
-- Approximately 0.18-second fades and hover transitions, with cancellation of previous tweens.
+- Square opaque panels, thin borders, mint highlights and control-only gradients. Color swatches are the sole small rounded exception, filled entirely with their selected color and without a border.
+- Header-only window dragging; draggable leaf launcher, watermark and keybind list. Pressing a drag handle never repositions the object. Viewport resizing does not undo a deliberate position.
+- The whole menu, border and popup share one CanvasGroup with a 0.24-second fade. Toggle movement and color transitions take 0.32 seconds; interrupted transitions cancel cleanly.
+- No close button or version/footer labels. Collapsed groups hide their divider; their plus/minus symbols use fixed geometry.
+- Dropdown selections use highlighted rows with no checkbox or checkmark.
 - Notifications outside the window, with a colored edge and fade-in/out.
-- Logo is a native UI vector trace. It needs no image asset upload, file API or HTTP request. The editable vector is [assets/mint-logo.svg](assets/mint-logo.svg).
+- The mint leaf is rendered locally as native UI spans. It needs no image asset upload, file API or HTTP request. The editable vector is [assets/mint-logo.svg](assets/mint-logo.svg).
 - No permanent render loop or scene scans. Input and layout changes are event-driven.
 
 ## Tabs and groups
@@ -142,9 +143,29 @@ Main:AddLabel("Accent"):AddColorPicker("Accent", {
 
 Escape clears a captured key. Key actions do not fire while typing in a textbox. Color popups include an HSV square, hue strip and HEX input.
 
+Right-click a feature keybind to choose **Hold**, **Toggle**, or **Always**. These modes apply to UI callbacks supplied by your application; the UI library itself implements no gameplay features. A keybind linked with `SyncToggleState = true` updates the associated toggle, and changes made using that toggle update its keybind-list indicator. Hold bindings release when the Roblox window loses focus.
+
+```lua
+local binding = Main:AddToggle("Example", {Text = "Example"})
+    :AddKeyPicker("ExampleKey", {
+        Default = "F8", Mode = "Hold", SyncToggleState = true,
+    })
+binding:SetMode("Always")
+print(binding:GetState())
+```
+
+Use `HideFromList = true` to omit a binding from the overlay, or `NoModes = true` for plain menu shortcuts that should not offer activation modes. Configs retain both the assigned key and its mode; older key-only configs are still accepted.
+
+The separate watermark and keybind list remain available when the menu closes. Each row contains only the function name and its key; active functions are highlighted. Both overlays can be dragged. On phones, the initial keybind list sits below the menu.
+
+```lua
+Window:SetWatermark("MintProject") -- text or boolean visibility
+Window:SetKeybindsVisible(true)
+```
+
 ## Theme manager
 
-Five built-in palettes: Mint, Ice, Amber, Rose and Violet. The editor exposes every theme color. Custom palettes can be saved, selected and deleted.
+Five built-in palettes: Mint, Ice, Amber, Rose and Violet. The editor exposes the seven active color roles. Custom palettes can be saved, selected and deleted. Every label, input, placeholder and popup follows the single `Text` color; secondary text uses reduced opacity.
 
 ```lua
 ThemeManager:ApplyTheme("Ice")
@@ -157,7 +178,7 @@ Library:SetTheme({
 })
 ```
 
-Theme roles: `Background`, `Panel`, `Field`, `Border`, `Text`, `Muted`, `Accent`, `AccentText`, `Hover`, `White`.
+Active theme roles: `Background`, `Panel`, `Field`, `Border`, `Text`, `Accent`, `Hover`. Legacy `Muted`, `AccentText` and `White` keys remain accepted for compatibility; text colors are unified under `Text`.
 
 ## Config manager
 
@@ -175,7 +196,7 @@ local json = Library:ExportConfig()
 local ok, errors = Library:ImportConfig(json)
 ```
 
-Local persistence uses the environment's file APIs if available. Writes are verified by reading back the saved data. Without file APIs, managers use session memory and label this clearly in the settings panel. Themes live in `MintProject/themes`, configs in `MintProject/configs`. Names are validated; paths cannot escape the selected folder.
+Local persistence uses the environment's file APIs if available. Writes are verified by reading back the saved data. Without file APIs, managers use session memory; the Name field's info button reports the storage mode. Themes live in `MintProject/themes`, configs in `MintProject/configs`. Names are validated; paths cannot escape the selected folder.
 
 In standard Roblox, session memory and JSON export/import work; persistent player profiles need an application-side server/DataStore integration. Import ignores unknown IDs, reports rejected values and applies valid controls.
 
@@ -185,6 +206,7 @@ In standard Roblox, session memory and JSON export/import work; persistent playe
 Window:SetVisible(false)
 Window:SetAnimations(true)
 Window:SetToggleKey(Enum.KeyCode.Insert)
+Window:SetToggleKey({Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift})
 Library:Notify("Ready", 3)
 Window:Destroy()
 Library:Unload() -- destroys every window and its listeners
@@ -214,9 +236,9 @@ lune run tests/smoke.luau
 
 Editable source is in `src/`. `Library.lua`, `Example.lua`, `addons/` and `dist/` are generated; edit the source and rebuild.
 
-Headless tests compile the code, validate native Roblox property types, simulate UI input, exercise config files and autoload using a mock filesystem, and check popup/lifecycle cleanup. The test loader maps Roblox's KeyCode.Unknown name to Lune's internal alias.
+Headless tests compile the code, validate native Roblox property types, simulate input, exercise config files and autoload using a mock filesystem, and check popup/lifecycle cleanup. Regressions cover GUI-inset dragging, offscreen movement, processed Shift input, launcher drag-versus-click, mode selection, Hold release, config mode roundtrips, collapsed dividers and whole-menu fading. The test loader maps Roblox's KeyCode.Unknown name to Lune's internal alias.
 
-The layout previews below are rendered from the UI instance tree in a browser. They are layout approximations, **not screenshots from Roblox**. A connected Roblox client is still needed for final visual, touch and animation verification.
+The layout previews below are rendered from the UI instance tree in a browser. They are layout approximations, **not screenshots from Roblox**. Version 0.4 passes the headless suite; final visual, touch and timing verification in a connected Roblox client is pending.
 
 ![Desktop layout preview](assets/preview/desktop-main.png)
 ![Settings layout preview](assets/preview/desktop-settings.png)

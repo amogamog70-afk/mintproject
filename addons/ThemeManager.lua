@@ -216,8 +216,7 @@ function ThemeManager.new(library)
     end
     function self:ApplyToTab(tab)
         assert(self.Library, 'SetLibrary first')
-        local group = tab:AddLeftGroupbox('Theme manager')
-        group:AddLabel('Preset palettes')
+        local group = tab:AddLeftGroupbox('Theme')
         local selection = group:AddDropdown('__theme.preset', {
             Text = 'Theme',
             Values = self:GetThemes(),
@@ -229,12 +228,12 @@ function ThemeManager.new(library)
                 end
             end,
         })
-        local name = group:AddInput('__theme.name', { Text = 'Custom theme name', Default = 'My theme' })
+        local name = group:AddInput('__theme.name', { Text = 'Name', Default = 'Custom' })
         local function refresh()
             selection:SetValues(self:GetThemes())
         end
         group:AddButton({
-            Text = 'Save current palette',
+            Text = 'Save theme',
             Func = function()
                 local ok, err = self:SaveCustomTheme(name:Get())
                 if ok then
@@ -244,7 +243,7 @@ function ThemeManager.new(library)
             end,
         })
         group:AddButton({
-            Text = 'Delete custom theme',
+            Text = 'Delete theme',
             Func = function()
                 local ok, err = self:DeleteCustomTheme(selection:Get())
                 if ok then
@@ -253,8 +252,7 @@ function ThemeManager.new(library)
                 self.Library:Notify(ok and 'Theme deleted' or err)
             end,
         })
-        group:AddButton({ Text = 'Refresh themes', Func = refresh })
-        local colors = tab:AddRightGroupbox('Palette editor')
+        local colors = tab:AddRightGroupbox('Colors')
         self.ColorControls = {}
         for _, role in ipairs({
             'Accent',
@@ -263,13 +261,11 @@ function ThemeManager.new(library)
             'Field',
             'Border',
             'Text',
-            'Muted',
-            'AccentText',
             'Hover',
-            'White',
         }) do
             self.ColorControls[role] = colors:AddLabel(role):AddColorPicker('__theme.color.' .. role, {
                 Default = self.Library.Theme[role],
+                ThemeRole = role,
                 Callback = function(color)
                     self.Library:SetTheme({ [role] = color })
                 end,

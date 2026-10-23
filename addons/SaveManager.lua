@@ -208,11 +208,13 @@ function SaveManager.new(library)
         return self:Load(data.name)
     end
     function self:BuildConfigSection(tab)
-        local group = tab:AddGroupbox('Configuration', { Column = 3 })
-        group:AddLabel('Storage: ' .. self.Storage.Mode)
-        local name = group:AddInput('__config.name', { Text = 'Config name', Default = 'Default' })
+        local group = tab:AddLeftGroupbox('Configs')
+        local name = group:AddInput(
+            '__config.name',
+            { Text = 'Name', Default = 'Default', Tooltip = 'Storage: ' .. self.Storage.Mode }
+        )
         local selected = group:AddDropdown('__config.selected', {
-            Text = 'Saved configs',
+            Text = 'Saved',
             Values = self:GetConfigs(),
             Callback = function(value)
                 if value then
@@ -227,7 +229,7 @@ function SaveManager.new(library)
             self.Library:Notify(ok and success or err or 'Operation failed')
         end
         group:AddButton({
-            Text = 'Save config',
+            Text = 'Save',
             Primary = true,
             Func = function()
                 local ok, err = self:Save(name:Get())
@@ -239,21 +241,21 @@ function SaveManager.new(library)
             end,
         })
         group:AddButton({
-            Text = 'Load selected',
+            Text = 'Load',
             Func = function()
                 local ok, err = self:Load(selected:Get() or name:Get())
                 report(ok, err, 'Config loaded')
             end,
         })
         group:AddButton({
-            Text = 'Set as autoload',
+            Text = 'Use on start',
             Func = function()
                 local ok, err = self:SetAutoloadConfig(selected:Get() or name:Get())
                 report(ok, err, 'Autoload selected')
             end,
         })
         group:AddButton({
-            Text = 'Delete selected',
+            Text = 'Delete',
             Func = function()
                 local ok, err = self:Delete(selected:Get() or name:Get())
                 if ok then
@@ -262,7 +264,6 @@ function SaveManager.new(library)
                 report(ok, err, 'Config deleted')
             end,
         })
-        group:AddButton({ Text = 'Refresh list', Func = refresh })
         return group
     end
     return self

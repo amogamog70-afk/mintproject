@@ -4,6 +4,7 @@ local fs = require('@lune/fs')
 local luau = require('@lune/luau')
 local roblox = require('@lune/roblox')
 local serde = require('@lune/serde')
+local guiInset = roblox.Vector2.zero
 local checks, connections, all, delayed = 0, {}, {}, {}
 local function check(value, message)
     assert(value, message)
@@ -58,7 +59,10 @@ local function instance(class)
                 )
             end
             if key == 'AbsolutePosition' then
-                if class == 'ScreenGui' or class == 'PlayerGui' then
+                if class == 'ScreenGui' then
+                    return guiInset
+                end
+                if class == 'PlayerGui' then
                     return roblox.Vector2.zero
                 end
                 local p = self.Parent and self.Parent.AbsolutePosition or roblox.Vector2.zero
@@ -218,6 +222,72 @@ end
 local library = load(fs.readFile('dist/MintProject.lua'))
 local window = library:CreateWindow({ Parent = instance('PlayerGui'), Title = 'Contract test' })
 local section = window:Tab('Test'):Section('Controls')
+guiInset = roblox.Vector2.new(0, -36)
+local initialPosition = window.Root.Position
+local start = window.Header.AbsolutePosition + roblox.Vector2.new(60, 18)
+local dragInput = {
+    UserInputType = roblox.Enum.UserInputType.MouseButton1,
+    Position = roblox.Vector3.new(start.X, start.Y, 0),
+}
+window.Header.InputBegan:Fire(dragInput)
+check(
+    window.Root.Position == initialPosition,
+    'Pressing the header does not move the menu with a nonzero GUI inset'
+)
+input.InputChanged:Fire({
+    UserInputType = roblox.Enum.UserInputType.MouseMovement,
+    Position = dragInput.Position + roblox.Vector3.new(17, 13, 0),
+})
+check(
+    window.Root.Position
+        == roblox.UDim2.new(
+            initialPosition.X.Scale,
+            initialPosition.X.Offset + 17,
+            initialPosition.Y.Scale,
+            initialPosition.Y.Offset + 13
+        ),
+    'Dragging applies only pointer deltas without mixing screen and parent coordinates'
+)
+input.InputEnded:Fire(dragInput)
+local afterDrag = window.Root.Position
+window.Header.InputBegan:Fire(dragInput)
+input.InputEnded:Fire(dragInput)
+window:AddTab('Second')
+check(window.Root.Position == afterDrag, 'A second press and tab creation do not cause position drift')
+local scaledWindow = library:CreateWindow({
+    Parent = instance('PlayerGui'),
+    Position = roblox.UDim2.new(0.5, -480, 0.5, -320),
+})
+local scaledPosition = scaledWindow.Root.Position
+scaledWindow.Header.InputBegan:Fire(dragInput)
+check(scaledWindow.Root.Position == scaledPosition, 'Dragging preserves scale-based positioning on press')
+input.InputChanged:Fire({
+    UserInputType = roblox.Enum.UserInputType.MouseMovement,
+    Position = dragInput.Position + roblox.Vector3.new(10, 10, 0),
+})
+check(
+    scaledWindow.Root.Position.X.Scale == 0.5 and scaledWindow.Root.Position.Y.Scale == 0.5,
+    'Drag retains anchor scales'
+)
+input.InputEnded:Fire(dragInput)
+scaledWindow.Header.InputBegan:Fire(dragInput)
+input.InputChanged:Fire({
+    UserInputType = roblox.Enum.UserInputType.MouseMovement,
+    Position = dragInput.Position + roblox.Vector3.new(-1800, -900, 0),
+})
+input.InputEnded:Fire(dragInput)
+check(
+    scaledWindow.Root.Position.X.Offset < -1280 and scaledWindow.Root.Position.Y.Offset < -720,
+    'Menu can be dragged beyond every screen edge'
+)
+local freePosition = scaledWindow.Root.Position
+scaledWindow:UpdateLayout()
+check(scaledWindow.Root.Position == freePosition, 'Layout does not undo a deliberate offscreen position')
+scaledWindow:Destroy()
+guiInset = roblox.Vector2.zero
+for _, child in ipairs(window.Root:GetChildren()) do
+    check(not child:IsA('UIStroke'), 'Outer border is inside the fading surface, not on the composite root')
+end
 library:RegisterComponent('Badge', function(ctx, owner, options)
     return ctx:Text(options.Text, owner.Body)
 end)
@@ -311,6 +381,12 @@ end
 local dropdownButton = findButton('A, C  ▾')
 dropdownButton.Activated:Fire()
 check(window.Context.Popup ~= nil, 'Dropdown opens')
+for _, value in ipairs({ 'A', 'B', 'C' }) do
+    local entry = findButton('  ' .. value)
+    for _, child in ipairs(entry:GetChildren()) do
+        check(not child:IsA('Frame'), 'Dropdown selection uses only row highlighting')
+    end
+end
 findButton('Select all').Activated:Fire()
 check(#multi:Get() == 3, 'Select all')
 findButton('Clear').Activated:Fire()
@@ -357,7 +433,14 @@ check(
     key:Get() == roblox.Enum.KeyCode.F7 and pressed == 1,
     'Captured key is assigned without firing its action'
 )
+dropdownButton.Activated:Fire()
+local fadingPopup = window.Context.Popup
+check(fadingPopup.Parent == window.Root, 'Popup shares the menu compositing root')
 window:SetVisible(false)
+check(
+    window.Context.Popup == fadingPopup and fadingPopup.Parent == window.Root and window.Root.Visible,
+    'Popup remains with the window until its fade completes'
+)
 flush()
 check(not window.Root.Visible and not window.Context.Popup, 'Hide closes popup')
 window:SetVisible(true)
@@ -367,12 +450,91 @@ window:SetVisible(false)
 window:SetVisible(true)
 flush()
 check(window.Root.Visible, 'Latest visibility wins during fade')
+local leftShift =
+    { UserInputType = roblox.Enum.UserInputType.Keyboard, KeyCode = roblox.Enum.KeyCode.LeftShift }
+local rightShift =
+    { UserInputType = roblox.Enum.UserInputType.Keyboard, KeyCode = roblox.Enum.KeyCode.RightShift }
+input.InputBegan:Fire(leftShift, true)
+check(not window.Visible, 'Left Shift closes the menu even when Roblox consumes the key')
+input.InputBegan:Fire(rightShift, true)
+check(window.Visible, 'Right Shift also reopens the menu')
+input.Focused = true
+input.InputBegan:Fire(leftShift, true)
+input.Focused = nil
+check(window.Visible, 'Typing retains priority over the menu shortcut')
+window:SetToggleKey('Insert')
+input.InputBegan:Fire(leftShift, false)
+check(window.Visible, 'Rebinding removes the old menu shortcut')
+input.InputBegan:Fire(
+    { UserInputType = roblox.Enum.UserInputType.Keyboard, KeyCode = roblox.Enum.KeyCode.Insert },
+    true
+)
+check(not window.Visible, 'A replacement menu key works')
+window:SetToggleKey({ roblox.Enum.KeyCode.LeftShift, roblox.Enum.KeyCode.RightShift })
+window:SetVisible(true)
+flush()
+local launchStart = window.OpenButton.Position
+window.OpenButton.InputBegan:Fire(dragInput)
+input.InputChanged:Fire({
+    UserInputType = roblox.Enum.UserInputType.MouseMovement,
+    Position = dragInput.Position + roblox.Vector3.new(31, -70, 0),
+})
+input.InputEnded:Fire(dragInput)
+window.OpenButton.Activated:Fire()
+check(
+    window.Visible and window.OpenButton.Position.X.Offset == launchStart.X.Offset + 31,
+    'Dragging the leaf launcher moves it without toggling the menu'
+)
+window.OpenButton.InputBegan:Fire(dragInput)
+input.InputEnded:Fire(dragInput)
+window.OpenButton.Activated:Fire()
+check(not window.Visible, 'Clicking the leaf launcher still toggles the menu')
+window:SetVisible(true)
+flush()
 section:SetExpanded(false)
 check(not section.Body.Visible and slider:Get() == 30, 'Collapse preserves control values')
+local groupHeading
+for _, child in ipairs(section.Root:GetChildren()) do
+    if child.Name == 'GroupHeading' then
+        groupHeading = child
+    end
+end
+for _, child in ipairs(groupHeading:GetChildren()) do
+    if child:IsA('Frame') and child.Name ~= 'CollapseIcon' then
+        check(not child.Visible, 'Collapsed groups hide their divider')
+    end
+end
+section:SetExpanded(true)
 window:Notify('Test')
 flush()
 window:SetTheme({ Accent = roblox.Color3.new(1, 0, 0) })
 check(window.Context.Theme.Accent.R == 1, 'Theme can change after construction')
+local textColor = roblox.Color3.fromRGB(190, 125, 245)
+local boundText = section:ColorPicker({
+    Id = 'bound.text',
+    Text = 'Text',
+    ThemeRole = 'Text',
+    Default = window.Context.Theme.Text,
+})
+window:SetTheme({ Text = textColor })
+local textNodes = 0
+local function checkTextTree(node)
+    if node:IsA('TextLabel') or node:IsA('TextButton') or node:IsA('TextBox') then
+        check(node.TextColor3 == textColor, 'Every menu text node follows the unified Text theme role')
+        if node:IsA('TextBox') then
+            check(node.PlaceholderColor3 == textColor, 'Placeholders follow the Text role')
+        end
+        textNodes += 1
+    end
+    for _, child in ipairs(node:GetChildren()) do
+        checkTextTree(child)
+    end
+end
+checkTextTree(window.Root)
+check(
+    textNodes > 15 and boundText.Value == textColor,
+    'Theme-role pickers and all text styles update together'
+)
 local linked = section:AddToggle('linked', { Text = 'Linked', Default = true })
 local linkedKey =
     linked:AddKeyPicker('linked.key', { Default = 'F9', Mode = 'Toggle', SyncToggleState = true })
@@ -385,13 +547,64 @@ check(not linked.Value, 'Keybind toggles its linked control')
 linked:Set(true)
 linkedKey:Activate(true)
 check(not linked.Value, 'Mouse and keybind states stay synchronized')
+check(window.KeybindRows[linkedKey].Marker.Visible == false, 'Inactive bindings are dim in the keybind list')
+linkedKey.Button.InputBegan:Fire({ UserInputType = roblox.Enum.UserInputType.MouseButton2 })
+check(window.Context.PopupAnchor == linkedKey.Button, 'Right click opens activation modes')
+findButton('Always').Activated:Fire()
+check(
+    linkedKey.Mode == 'Always' and linked.Value and window.KeybindRows[linkedKey].Marker.Visible,
+    'Always mode activates the function and its overlay indicator'
+)
+linkedKey:SetMode('Hold')
+check(not linked.Value, 'Changing to Hold releases an Always binding')
+linkedKey:Activate(true)
+check(
+    linked.Value and window.KeybindRows[linkedKey].Name.TextTransparency == 0,
+    'Hold press activates and highlights the function'
+)
+linkedKey:Activate(false)
+check(not linked.Value, 'Hold release deactivates the function')
+linkedKey:Activate(true)
+linkedKey:Set('F10')
+check(not linked.Value, 'Rebinding an active Hold key releases its old state')
+check(not linkedKey:SetMode('Invalid'), 'Invalid keybind mode is rejected')
+linkedKey:SetMode('Always')
+local modeConfig = library:ExportConfig()
+linkedKey:SetMode('Toggle')
+linkedKey:Set('F8')
+check(
+    library:ImportConfig(modeConfig)
+        and linkedKey.Mode == 'Always'
+        and linkedKey.Value == roblox.Enum.KeyCode.F10,
+    'Key and activation mode survive config roundtrip'
+)
+local shortcut = section
+    :AddLabel('Menu shortcut')
+    :AddKeyPicker('menu.shortcut', { Default = 'RightShift', NoModes = true })
+shortcut.Button.InputBegan:Fire({ UserInputType = roblox.Enum.UserInputType.MouseButton2 })
+check(
+    not window.Context.Popup and not window.KeybindRows[shortcut],
+    'Menu shortcuts omit activation modes and feature overlays'
+)
+window:SetVisible(false)
+flush()
+check(
+    window.Watermark.Visible and window.KeybindPanel.Visible,
+    'Watermark and keybind list remain visible with menu hidden'
+)
+window:SetWatermark('Custom')
+window:SetKeybindsVisible(false)
+check(not window.KeybindPanel.Visible, 'Keybind panel can be independently hidden')
+window:SetKeybindsVisible(true)
+window:SetVisible(true)
+flush()
 local changeCount = 0
 slider:OnChanged(function()
     changeCount += 1
 end)
 slider:SetValue(28)
 check(changeCount == 1 and slider.Value == 28, 'OnChanged and SetValue aliases')
-check(window.ColumnCount == 3, 'Wide desktop uses three columns')
+check(window.ColumnCount == 2, 'Desktop uses two readable columns')
 local disk, folders = {}, {}
 environment.readfile = function(path)
     assert(disk[path], 'Missing file')
@@ -480,7 +693,7 @@ environment.game.HttpGet = function(_, url)
 end
 local editable = load(fs.readFile('Example.lua'))
 check(
-    #editable.Tabs == 4 and editable.Tabs.Settings ~= nil,
+    #editable.Tabs == 3 and editable.Tabs.Settings ~= nil,
     'Editable example runs library and manager loaders'
 )
 local editableGui = editable.Context.Gui
@@ -492,7 +705,7 @@ for _, name in ipairs({ 'readfile', 'writefile', 'isfile', 'isfolder', 'makefold
     environment[name] = nil
 end
 local demo = load(fs.readFile('dist/Demo.lua'))
-check(#demo.Tabs == 4, 'Standalone demo creates four tabs')
+check(#demo.Tabs == 3, 'Standalone demo creates three tabs')
 if require('@lune/process').args[1] == '--preview' then
     local function encode(value)
         local kind = typeof(value)
@@ -533,6 +746,7 @@ if require('@lune/process').args[1] == '--preview' then
         'GroupTransparency',
         'Text',
         'TextColor3',
+        'TextTransparency',
         'TextSize',
         'TextXAlignment',
         'TextYAlignment',

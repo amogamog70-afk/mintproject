@@ -2,15 +2,15 @@ local UIS = game:GetService('UserInputService')
 local Tween = game:GetService('TweenService')
 local Core = {}
 Core.Theme = {
-    Background = Color3.fromRGB(10, 12, 12),
-    Panel = Color3.fromRGB(15, 18, 18),
-    Field = Color3.fromRGB(20, 24, 23),
-    Border = Color3.fromRGB(39, 46, 43),
-    Text = Color3.fromRGB(226, 233, 229),
+    Background = Color3.fromRGB(10, 14, 16),
+    Panel = Color3.fromRGB(16, 22, 25),
+    Field = Color3.fromRGB(24, 32, 36),
+    Border = Color3.fromRGB(37, 49, 52),
+    Text = Color3.fromRGB(230, 240, 235),
     Muted = Color3.fromRGB(123, 139, 130),
-    Accent = Color3.fromRGB(116, 227, 174),
+    Accent = Color3.fromRGB(107, 230, 180),
     AccentText = Color3.fromRGB(10, 30, 22),
-    Hover = Color3.fromRGB(29, 36, 32),
+    Hover = Color3.fromRGB(33, 44, 47),
     White = Color3.new(1, 1, 1),
 }
 function Core.number(value, min, max, step)
@@ -49,6 +49,12 @@ function Core.new(parent, options)
         return c
     end
     function self:Bind(node, property, role)
+        if property == 'TextColor3' then
+            node.TextTransparency = role == 'Muted' and 0.3 or 0
+            role = 'Text'
+        elseif property == 'PlaceholderColor3' then
+            role = 'Text'
+        end
         self.Bindings[node] = self.Bindings[node] or {}
         self.Bindings[node][property] = role
         node[property] = self.Theme[role]
@@ -70,6 +76,15 @@ function Core.new(parent, options)
         for k, v in pairs(props or {}) do
             n[k] = v
         end
+        if n:IsA('TextLabel') or n:IsA('TextButton') or n:IsA('TextBox') then
+            self:Bind(n, 'TextColor3', 'Text')
+            if props and props.TextTransparency then
+                n.TextTransparency = props.TextTransparency
+            end
+            if n:IsA('TextBox') then
+                self:Bind(n, 'PlaceholderColor3', 'Text')
+            end
+        end
         n.Parent = parent
         return n
     end
@@ -77,6 +92,16 @@ function Core.new(parent, options)
         local s = self:New('UIStroke', { Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, node)
         self:Bind(s, 'Color', 'Border')
         return s
+    end
+    function self:Corner(node, radius)
+        -- All controls are square; color swatches opt into their own small radius.
+        return nil
+    end
+    function self:Gradient(node)
+        return self:New('UIGradient', {
+            Rotation = 90,
+            Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(190, 211, 202)),
+        }, node)
     end
     function self:Paint(node, role)
         return self:Bind(node, 'BackgroundColor3', role)
@@ -101,6 +126,13 @@ function Core.new(parent, options)
         local b = self:New('TextButton', p, parent)
         self:Paint(b, 'Field')
         self:Stroke(b)
+        for _, child in ipairs(b:GetChildren()) do
+            if child:IsA('UIStroke') then
+                child.Transparency = 0.65
+            end
+        end
+        self:Corner(b, 6)
+        self:Gradient(b)
         local bucket
         local ancestor = parent
         while ancestor do
@@ -134,11 +166,15 @@ function Core.new(parent, options)
             PaddingRight = UDim.new(0, n),
         }, parent)
     end
-    function self:Animate(node, props)
+    function self:Animate(node, props, duration)
         if self.Destroyed then
             return
         end
         if not self.Animations then
+            if self.ActiveTweens[node] then
+                self.ActiveTweens[node]:Cancel()
+                self.ActiveTweens[node] = nil
+            end
             for k, v in pairs(props) do
                 node[k] = v
             end
@@ -147,8 +183,11 @@ function Core.new(parent, options)
         if self.ActiveTweens[node] then
             self.ActiveTweens[node]:Cancel()
         end
-        local tween =
-            Tween:Create(node, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props)
+        local tween = Tween:Create(
+            node,
+            TweenInfo.new(duration or 0.24, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+            props
+        )
         self.ActiveTweens[node] = tween
         tween:Play()
     end
@@ -193,10 +232,14 @@ function Core.new(parent, options)
     end
     function self:OpenPopup(anchor, width, height)
         self:ClosePopup()
-        local v = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(800, 600)
+        local host = self.MenuRoot or self.Gui
+        local v = host == self.Gui
+                and (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(800, 600))
+            or host.AbsoluteSize
+        local origin = host == self.Gui and Vector2.new(0, 0) or host.AbsolutePosition
         width = math.floor(math.min(width, v.X - 16))
         height = math.floor(math.min(height, v.Y - 16))
-        local pos = anchor.AbsolutePosition
+        local pos = anchor.AbsolutePosition - origin
         local y = pos.Y + anchor.AbsoluteSize.Y + 4
         if y + height > v.Y - 8 then
             y = math.max(8, pos.Y - height - 4)
@@ -210,9 +253,10 @@ function Core.new(parent, options)
             Size = UDim2.fromOffset(width, height),
             ZIndex = 100,
             Active = true,
-        }, self.Gui)
+        }, host)
         self:Paint(p, 'Panel')
         self:Stroke(p)
+        self:Corner(p, 8)
         self.Popup = p
         self.PopupAnchor = anchor
         return p
@@ -249,16 +293,18 @@ function Core.new(parent, options)
             f(input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode or input.UserInputType)
             return
         end
+        -- Roblox may consume Shift for its own controls. The menu shortcut still works,
+        -- while focused textboxes and key capture above retain priority.
+        if
+            input.UserInputType == Enum.UserInputType.Keyboard
+            and self.ToggleKeys
+            and self.ToggleKeys[input.KeyCode]
+            and self.ToggleVisible
+        then
+            self.ToggleVisible()
+            return
+        end
         if not processed then
-            if
-                input.UserInputType == Enum.UserInputType.Keyboard
-                and self.ToggleKey
-                and self.ToggleKey ~= Enum.KeyCode.Unknown
-                and input.KeyCode == self.ToggleKey
-                and self.ToggleVisible
-            then
-                self.ToggleVisible()
-            end
             for control in pairs(self.Keybinds) do
                 if
                     control.Value ~= Enum.KeyCode.Unknown
@@ -306,8 +352,21 @@ function Core.new(parent, options)
             end
         end
     end)
+    if UIS.WindowFocusReleased then
+        self:Connect(UIS.WindowFocusReleased, function()
+            for control in pairs(self.Keybinds) do
+                if control.Mode == 'Hold' and control.SetState then
+                    control:SetState(false)
+                end
+            end
+            self.Drag, self.DragInput, self.DragMouse, self.DragEnd = nil, nil, nil, nil
+        end)
+    end
     function self:Pointer(node, callback, finish, bucket)
         self:Connect(node.InputBegan, function(input)
+            if self.MenuClosing then
+                return
+            end
             if
                 input.UserInputType == Enum.UserInputType.MouseButton1
                 or input.UserInputType == Enum.UserInputType.Touch
@@ -316,7 +375,7 @@ function Core.new(parent, options)
                 self.DragMouse = input.UserInputType == Enum.UserInputType.MouseButton1
                 self.Drag = callback
                 self.DragEnd = finish
-                callback(input.Position)
+                callback(input.Position, true)
             end
         end, bucket)
     end
@@ -328,13 +387,19 @@ function Core.new(parent, options)
         end
         for node, properties in pairs(self.Bindings) do
             if node.Parent then
+                if self.ActiveTweens[node] then
+                    self.ActiveTweens[node]:Cancel()
+                    self.ActiveTweens[node] = nil
+                end
                 for prop, role in pairs(properties) do
                     node[prop] = self.Theme[role]
                 end
             end
         end
         for _, control in pairs(self.Controls) do
-            if control.Refresh then
+            if control.ThemeRole and control.Set and self.Theme[control.ThemeRole] then
+                control:Set(self.Theme[control.ThemeRole], true)
+            elseif control.Refresh then
                 control:Refresh()
             end
         end
