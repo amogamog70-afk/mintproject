@@ -1,0 +1,47 @@
+{
+  "repository": "https://github.com/FacilityHUB/UI-Facility-Test",
+  "commit": "a91649b5ef8a8bec2888aa5e668a768056506183",
+  "mirroredOn": "2026-10-23",
+  "files": [
+    {
+      "path": "addons/Icons.luau",
+      "upstreamBlob": "777a287adccb8f33edb6d4179a5ae722c9f231cb",
+      "sha256": "d9d59ac8e816acfafd33660f2d2542a4366f24557afa62cb6b80da8561083d93",
+      "changes": []
+    },
+    {
+      "path": "addons/InterfaceManager.luau",
+      "upstreamBlob": "80f6ebb7e7b4499faf88ea11762981fe4efe7aa3",
+      "sha256": "8a13f3ce4aae0fb0d50aa72e11a34d97eac501933d5eaa5e757bbe40376e9c55",
+      "changes": []
+    },
+    {
+      "path": "addons/SaveManager.luau",
+      "upstreamBlob": "1c707710e5752d2ac312be3225e91179ebd49ab0",
+      "sha256": "0f9792e2f7ad773c01aa223ece137cef942a0e385dae766b24578b93fbfce96d",
+      "changes": []
+    },
+    {
+      "path": "addons/ThemeManager.luau",
+      "upstreamBlob": "9db43c9ed6b3548f6715d4cf3208facda24338c2",
+      "sha256": "24e9fea9d42ebe903ee11d4697fed766d536f4e6fb292953cdb440ab32298e64",
+      "changes": []
+    },
+    {
+      "path": "example.luau",
+      "upstreamBlob": "a4aa1c55c390830c427a675b989473b1361b4962",
+      "sha256": "cdbee41abf6c39241a14594b119ba0a3483154dfbfe8f87422b673fccec3b048",
+      "changes": [
+        "Example source URL points to the MintProject mirror."
+      ]
+    },
+    {
+      "path": "main.luau",
+      "upstreamBlob": "6cf774829034119c70c3f06341a5795fffe73caf",
+      "sha256": "523cb827523d83d75575c31165809f2a52288bb5410c859537206c742558d2b9",
+      "changes": [
+        "Addon base URL points to the MintProject mirror."
+      ]
+    }
+  ]
+}
