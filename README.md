@@ -21,6 +21,8 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/amogamog70-afk/mintpr
 
 The loader provides Main, Elements and Settings tabs, theme editing, keybind settings and config management. These example controls demonstrate the interface; they do not implement gameplay features. Configs and themes use the `MintProject/Facility` storage namespace. File persistence depends on the client environment's file APIs; Facility also supports session memory.
 
+The theme is restored before the window and its color pickers are created. Window preloading and ThemeManager both read `MintProject/Facility/settings/theme.json`; unrelated themes saved under `Facility/settings/theme.json` are not loaded. Mint is the first-run default. A previously saved MintProject theme takes priority on later runs. Use the paintbrush editor and confirm **save** when closing it to persist color changes; theme storage is separate from normal configs.
+
 The original Facility repository can disappear without removing the library or its addons from this mirror. The interface still needs Roblox and GitHub connectivity for remote loading and Roblox-hosted assets.
 
 This loader requires a client environment that supplies `loadstring` and `game:HttpGet`. For Studio, install the mirrored library and addons as ModuleScripts using Facility's module-loading layout instead.

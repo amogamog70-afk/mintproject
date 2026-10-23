@@ -34,6 +34,11 @@ Library.BaseUrl = BASE
 local SaveManager = assert(Library.SaveManager, "MintProject: SaveManager did not load")
 local InterfaceManager = assert(Library.InterfaceManager, "MintProject: InterfaceManager did not load")
 local ThemeManager = assert(Library.ThemeManager, "MintProject: ThemeManager did not load")
+local THEME_FOLDER = "MintProject/Facility"
+
+-- Set the folder before Window(), which preloads its saved palette.
+ThemeManager:SetLibrary(Library)
+ThemeManager:SetFolder(THEME_FOLDER)
 
 -- MintProject theme. Keep Facility's layout and controls.
 local MintColors = {
@@ -84,10 +89,12 @@ Library.Theme.WindowAlpha = 0
 ThemeManager:Apply("mint")
 Library:SetGlass(false)
 Library:SetToggleKey("RightShift")
+ThemeManager:Load()
 
 -- Window.
 local Window = Library:Window({
 	Title = "MintProject",
+	ThemeFolder = THEME_FOLDER,
 	Suffix = "",
 	Width = 700,
 	Height = 620,
@@ -120,7 +127,7 @@ local Appearance = Tabs.Main:Section("Appearance", 2)
 Appearance:ColorPicker({
 	Text = "Accent",
 	Flag = false,
-	Default = MintColors.Accent,
+	Default = Library.Theme.Accent,
 	Callback = function(color)
 		ThemeManager:SetAccent(color)
 	end,
@@ -156,8 +163,7 @@ InterfaceManager:SetLibrary(Library)
 InterfaceManager:SetWindow(Window)
 ThemeManager:SetLibrary(Library)
 
-InterfaceManager:SetFolder("MintProject/Facility")
-ThemeManager:SetFolder("MintProject/Facility")
+InterfaceManager:SetFolder(THEME_FOLDER)
 SaveManager:SetFolder("MintProject/Facility/default")
 SaveManager:IgnoreThemeSettings()
 
@@ -167,7 +173,6 @@ ThemeManager:Mount(Window)
 
 Window:SetTab(Tabs.Main)
 SaveManager:LoadAutoloadConfig()
-ThemeManager:Load()
 
 local MintProject = {
 	Library = Library,
