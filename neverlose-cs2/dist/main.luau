@@ -7039,7 +7039,7 @@ if not isfile(configFolder.."/Default") and isfile("MintProject/NeverloseCS2/Def
 end
 local Window=Library:CreateWindow({Name="Neverlose",Content=name,Logo=Library.GlobalLogo,Size=Library.Scales.Large,ConfigFolder=configFolder,Enable3DRenderer=false,Keybind="RightShift"})
 Window:SetAccount({Username=game:GetService("Players").LocalPlayer.DisplayName,Expires="MintProject"})
-local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.3",Game={Name=name,PlaceId=game.PlaceId}}
+local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.4",Game={Name=name,PlaceId=game.PlaceId}}
 local unloaded=false
 local originalUnload=Library.Unload
 function Library:Unload()
@@ -7662,9 +7662,13 @@ local initializeRemovals=function(App)
   end
  end
  local section=App.Tabs.Visuals:AddSection({Name="REMOVALS",Position="left"})
+ F.Rows={}
  for _,entry in ipairs({{"Smoke","No smoke"},{"Flash","No flash"},{"Fire","No fire effects"},{"Explosions","No explosion effects"},{"Muzzle","No muzzle flash"},{"Damage","No damage overlay"},{"Scope","No scope overlay"},{"EnemyMarkers","No enemy markers"},{"Pings","No ping markers"}})do
   local category=entry[1]
-  section:AddLabel(entry[2]):AddToggle({Default=false,Flag="removals_"..category,Callback=function(value)F:Set(category,value)end})
+  local row=section:AddLabel(entry[2])
+  local toggle=row:AddToggle({Default=false,Flag="removals_"..category,Callback=function(value)F:Set(category,value)end})
+  toggle.Root.LayoutOrder=10
+  F.Rows[category]={Row=row,Toggle=toggle}
  end
  local unload=App.Library.Unload
  function App.Library:Unload()F:Destroy();return unload(self)end
@@ -7674,9 +7678,10 @@ end
 initializeRemovals(App)
 local initializeCrosshair=function(App)
  local Players=game:GetService("Players")
+ local RunService=game:GetService("RunService")
  local LocalPlayer=Players.LocalPlayer
  local PlayerGui=LocalPlayer:WaitForChild("PlayerGui")
- local C={Alive=true,Settings={Force=false,Custom=false,Length=8,Width=2,Gap=4,Dot=true,Outline=false,Color=Color3.fromRGB(242,245,250)},Records={},Connections={},TargetConnections={},Strokes={},Stats={Errors=0}}
+ local C={Alive=true,GameAngle=0,ScopeAngle=0,Settings={Force=false,Custom=false,Length=8,Width=2,Gap=4,Dot=true,Outline=false,Color=Color3.fromRGB(242,245,250),Spin=false,SpinSpeed=90,ScopeLength=180,ScopeGap=6,ScopeSpin=false,ScopeSpinSpeed=90},Records={},Connections={},TargetConnections={},Strokes={},Stats={Errors=0}}
  App.Crosshair=C
  local Variables
  if game.GameId==6993600665 then pcall(function()Variables=require(game.ReplicatedFirst.Variables)end)end
@@ -7720,6 +7725,61 @@ local initializeCrosshair=function(App)
   end
   record.Applying=true;set(instance,property,target(record,property));record.Applying=false
  end
+ function C:ScopeActive()
+  return App.Removals and App.Removals.Settings.Scope and self.Scope and self.Scope.Visible or false
+ end
+ function C:UpdateScopeReticle()
+  if not self.Root then return end
+  if not self.ScopeReticle or self.ScopeReticle.Parent~=self.Root then
+   if self.ScopeReticle then self.ScopeReticle:Destroy()end
+   local root=Instance.new("Frame")
+   root.Name="MintProjectScopeReticle";root.Size=UDim2.fromOffset(0,0);root.AnchorPoint=Vector2.new(.5,.5);root.BackgroundTransparency=1;root.BorderSizePixel=0;root.ZIndex=100;root.Visible=false;root.Parent=self.Root
+   self.ScopeReticle=root;self.ScopeLines={}
+   for _,name in ipairs({"Right","Left","Top","Bottom"})do
+    local line=Instance.new("Frame")
+    line.Name=name;line.BackgroundColor3=Color3.new(1,1,1);line.BorderSizePixel=0;line.ZIndex=101;line.Parent=root
+    self.ScopeLines[name]=line
+   end
+  end
+  local length,gap=self.Settings.ScopeLength,self.Settings.ScopeGap
+  local root=self.ScopeReticle
+  set(root,"Position",self.Frame and self.Frame.Position or UDim2.fromScale(.5,.5))
+  set(root,"Visible",self:ScopeActive())
+  set(root,"Rotation",self.Settings.ScopeSpin and self.Settings.ScopeSpinSpeed>0 and self.ScopeAngle or 0)
+  local function line(name,anchor,position,size)
+   local part=self.ScopeLines[name]
+   set(part,"AnchorPoint",anchor);set(part,"Position",position);set(part,"Size",size)
+  end
+  line("Right",Vector2.new(0,.5),UDim2.fromOffset(gap,0),UDim2.fromOffset(length,1))
+  line("Left",Vector2.new(1,.5),UDim2.fromOffset(-gap,0),UDim2.fromOffset(length,1))
+  line("Top",Vector2.new(.5,1),UDim2.fromOffset(0,-gap),UDim2.fromOffset(1,length))
+  line("Bottom",Vector2.new(.5,0),UDim2.fromOffset(0,gap),UDim2.fromOffset(1,length))
+ end
+ function C:UpdateSpin()
+  if not self.Alive then return end
+  local rootVisible=self.Root and self.Root.Enabled
+  local gameSpin=rootVisible and self.Settings.Spin and self.Settings.SpinSpeed>0 and (self.Settings.Custom or self.Settings.Force)and self.Frame and self.Frame.Parent and self.Frame.Visible and not self:ScopeActive()
+  local scopeSpin=rootVisible and self.Settings.ScopeSpin and self.Settings.ScopeSpinSpeed>0 and self:ScopeActive()
+  if (gameSpin or scopeSpin)and not self.SpinConnection then
+   self.SpinConnection=RunService.RenderStepped:Connect(function(dt)
+    if not self.Alive then return end
+    local ok,err=pcall(function()
+     if self:ScopeActive()then
+      if self.Settings.ScopeSpin and self.Settings.ScopeSpinSpeed>0 then
+       self.ScopeAngle=(self.ScopeAngle+dt*self.Settings.ScopeSpinSpeed)%360
+       set(self.ScopeReticle,"Rotation",self.ScopeAngle)
+      end
+     elseif self.Settings.Spin and self.Settings.SpinSpeed>0 and (self.Settings.Custom or self.Settings.Force)and self.Frame and self.Frame.Visible then
+      self.GameAngle=(self.GameAngle+dt*self.Settings.SpinSpeed)%360
+      self:Override(self.Frame,"Rotation",self.GameAngle)
+     end
+    end)
+    if not ok then self.LastError=tostring(err);self.Stats.Errors+=1;if self.SpinConnection then self.SpinConnection:Disconnect();self.SpinConnection=nil end end
+   end)
+  elseif not gameSpin and not scopeSpin and self.SpinConnection then
+   self.SpinConnection:Disconnect();self.SpinConnection=nil
+  end
+ end
  function C:Refresh()
   if not self.Alive or self.Refreshing then return end
   self.Refreshing=true
@@ -7731,9 +7791,10 @@ local initializeCrosshair=function(App)
    end
    local frame,scope=self.Frame,self.Scope
    if frame and frame.Parent then
-    local fallback=App.Removals and App.Removals.Settings.Scope and scope and scope.Visible
-    if self.Settings.Force or fallback then want(frame,"Visible",true)end
-    if self.Settings.Force or self.Settings.Custom or fallback then want(self.CustomFrame,"Visible",false)end
+    local scopedReticle=self:ScopeActive()
+    if scopedReticle then want(frame,"Visible",false)elseif self.Settings.Force then want(frame,"Visible",true)end
+    if self.Settings.Force or self.Settings.Custom or scopedReticle then want(self.CustomFrame,"Visible",false)end
+    if self.Settings.Spin and self.Settings.SpinSpeed>0 and (self.Settings.Custom or self.Settings.Force)and not scopedReticle then want(frame,"Rotation",self.GameAngle)end
     if self.Settings.Custom then
      local s=self.Settings
      local span=2*(s.Length+s.Gap)
@@ -7765,6 +7826,7 @@ local initializeCrosshair=function(App)
    for part,stroke in pairs(self.Strokes)do
     if not self.Settings.Custom or not self.Settings.Outline or not part.Parent then stroke:Destroy();self.Strokes[part]=nil end
    end
+   self:UpdateScopeReticle();self:UpdateSpin()
   end)
   self.Refreshing=false
   if not ok then self.Stats.Errors+=1;self.LastError=tostring(err)end
@@ -7780,19 +7842,28 @@ local initializeCrosshair=function(App)
    table.clear(self.TargetConnections)
    self.Root=root;self.Frame=frame;self.Scope=scope;self.CustomFrame=root and root:FindFirstChild("CustomFrame")
    if scope then table.insert(self.TargetConnections,scope:GetPropertyChangedSignal("Visible"):Connect(function()self:Refresh()end))end
+   if frame then table.insert(self.TargetConnections,frame:GetPropertyChangedSignal("Visible"):Connect(function()self:UpdateSpin()end))end
+   if root then table.insert(self.TargetConnections,root:GetPropertyChangedSignal("Enabled"):Connect(function()self:UpdateSpin()end))end
    if root then table.insert(self.TargetConnections,root.ChildAdded:Connect(function()task.defer(function()self:Resolve();self:Refresh()end)end))end
   end
   self:Refresh()
  end
- function C:Set(key,value)self.Settings[key]=value;self:Refresh()end
+ function C:Set(key,value)
+  self.Settings[key]=value
+  if key=="Spin"and not value then self.GameAngle=0 end
+  if key=="ScopeSpin"and not value then self.ScopeAngle=0 end
+  self:Refresh()
+ end
  function C:Destroy()
   if not self.Alive then return end
   self.Alive=false
+  if self.SpinConnection then self.SpinConnection:Disconnect();self.SpinConnection=nil end
   for _,connection in ipairs(self.Connections)do connection:Disconnect()end
   for _,connection in ipairs(self.TargetConnections)do connection:Disconnect()end
   local remove={};for instance,record in pairs(self.Records)do for property in pairs(record.Original)do table.insert(remove,{instance,property})end end
   for _,entry in ipairs(remove)do self:Drop(entry[1],entry[2])end
   for _,stroke in pairs(self.Strokes)do stroke:Destroy()end
+  if self.ScopeReticle then self.ScopeReticle:Destroy();self.ScopeReticle=nil end
   table.clear(self.Connections);table.clear(self.TargetConnections);table.clear(self.Strokes)
  end
  C:Resolve()
@@ -7824,6 +7895,15 @@ local initializeCrosshair=function(App)
  end
  options:AddLabel("Center dot"):AddToggle({Default=true,Flag="crosshair_dot",Callback=function(v)C:Set("Dot",v)end})
  options:AddLabel("Outline"):AddToggle({Default=false,Flag="crosshair_outline",Callback=function(v)C:Set("Outline",v)end})
+ options:AddLabel("Spin"):AddToggle({Default=false,Flag="crosshair_spin",Callback=function(v)C:Set("Spin",v)end})
+ options:AddLabel("Spin speed"):AddSlider({Default=90,Min=0,Max=360,Rounding=0,Flag="crosshair_spin_speed",Callback=function(v)C:Set("SpinSpeed",v)end})
+ local scopeRow=App.Removals.Rows.Scope.Row
+ local scopeOptions=scopeRow:AddOption();scopeOptions.Trigger.LayoutOrder=20
+ C.ScopeOptions=scopeOptions
+ scopeOptions:AddLabel("Length"):AddSlider({Default=180,Min=10,Max=600,Rounding=0,Flag="scope_reticle_length",Callback=function(v)C:Set("ScopeLength",v)end})
+ scopeOptions:AddLabel("Gap"):AddSlider({Default=6,Min=0,Max=100,Rounding=0,Flag="scope_reticle_gap",Callback=function(v)C:Set("ScopeGap",v)end})
+ scopeOptions:AddLabel("Spin"):AddToggle({Default=false,Flag="scope_reticle_spin",Callback=function(v)C:Set("ScopeSpin",v)end})
+ scopeOptions:AddLabel("Spin speed"):AddSlider({Default=90,Min=0,Max=360,Rounding=0,Flag="scope_reticle_spin_speed",Callback=function(v)C:Set("ScopeSpinSpeed",v)end})
  local unload=App.Library.Unload
  function App.Library:Unload()C:Destroy();return unload(self)end
  return C

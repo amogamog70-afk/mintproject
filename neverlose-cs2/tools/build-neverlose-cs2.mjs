@@ -43,7 +43,7 @@ if not isfile(configFolder.."/Default") and isfile("MintProject/NeverloseCS2/Def
 end
 local Window=Library:CreateWindow({Name="Neverlose",Content=name,Logo=Library.GlobalLogo,Size=Library.Scales.Large,ConfigFolder=configFolder,Enable3DRenderer=false,Keybind="RightShift"})
 Window:SetAccount({Username=game:GetService("Players").LocalPlayer.DisplayName,Expires="MintProject"})
-local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.3",Game={Name=name,PlaceId=game.PlaceId}}
+local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.4",Game={Name=name,PlaceId=game.PlaceId}}
 local unloaded=false
 local originalUnload=Library.Unload
 function Library:Unload()

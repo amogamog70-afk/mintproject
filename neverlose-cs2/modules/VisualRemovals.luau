@@ -158,9 +158,13 @@ return function(App)
   end
  end
  local section=App.Tabs.Visuals:AddSection({Name="REMOVALS",Position="left"})
+ F.Rows={}
  for _,entry in ipairs({{"Smoke","No smoke"},{"Flash","No flash"},{"Fire","No fire effects"},{"Explosions","No explosion effects"},{"Muzzle","No muzzle flash"},{"Damage","No damage overlay"},{"Scope","No scope overlay"},{"EnemyMarkers","No enemy markers"},{"Pings","No ping markers"}})do
   local category=entry[1]
-  section:AddLabel(entry[2]):AddToggle({Default=false,Flag="removals_"..category,Callback=function(value)F:Set(category,value)end})
+  local row=section:AddLabel(entry[2])
+  local toggle=row:AddToggle({Default=false,Flag="removals_"..category,Callback=function(value)F:Set(category,value)end})
+  toggle.Root.LayoutOrder=10
+  F.Rows[category]={Row=row,Toggle=toggle}
  end
  local unload=App.Library.Unload
  function App.Library:Unload()F:Destroy();return unload(self)end
