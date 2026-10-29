@@ -14,7 +14,14 @@ The ESP tab contains player boxes, names, distance, health, held-item names and 
 
 Run `node tools/build-neverlose-cs2.mjs` from this folder. The self-contained build is written to `dist/main.luau` and `MintProject Neverlose CS2.lua`. The PNG silhouettes are embedded in `assets/equipment/WhiteIcons.luau` and cached locally by the executor.
 
-## UI repairs in 2026.10.29.2
+## Crosshair and markers in 2026.10.29.3
+
+- No scope overlay removes the scope mask, edge bars and blur while keeping the zoom container intact. The normal game crosshair supplies the visible reticle while the scope mask is hidden.
+- Force crosshair keeps the standard game crosshair visible with sniper rifles. Game crosshair edits its existing frames: length, width, gap, color, center dot and outline. These settings are inside its three-dot options button.
+- No enemy markers hides the game's `Enemy_` indicators. No ping markers hides in-world ping markers without touching scoreboard ping values or MintProject ESP.
+- Disabling features or unloading restores the controlled properties. Gameplay zoom and weapon data are not modified.
+
+## UI repairs
 
 - The HSV picker uses gradients drawn by Roblox, without an external color-map texture. Hex entry validates input. Dragging ends on release outside the popup or when the window loses focus.
 - Compact options use the original 220-pixel panel style and inline sliders when they fit. Long rows move controls below the label when needed. Numbers are validated and clamped.

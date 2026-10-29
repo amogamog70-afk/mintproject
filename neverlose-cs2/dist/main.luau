@@ -7039,7 +7039,7 @@ if not isfile(configFolder.."/Default") and isfile("MintProject/NeverloseCS2/Def
 end
 local Window=Library:CreateWindow({Name="Neverlose",Content=name,Logo=Library.GlobalLogo,Size=Library.Scales.Large,ConfigFolder=configFolder,Enable3DRenderer=false,Keybind="RightShift"})
 Window:SetAccount({Username=game:GetService("Players").LocalPlayer.DisplayName,Expires="MintProject"})
-local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.2",Game={Name=name,PlaceId=game.PlaceId}}
+local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.3",Game={Name=name,PlaceId=game.PlaceId}}
 local unloaded=false
 local originalUnload=Library.Unload
 function Library:Unload()
@@ -7506,7 +7506,7 @@ local initializeRemovals=function(App)
  local Players=game:GetService("Players")
  local Lighting=game:GetService("Lighting")
  local PlayerGui=Players.LocalPlayer:WaitForChild("PlayerGui")
- local F={Alive=true,Targets={},Connections={},Settings={Smoke=false,Flash=false,Fire=false,Explosions=false,Muzzle=false,Damage=false,Scope=false},Stats={Targets=0,Changed=0,Errors=0}}
+ local F={Alive=true,Targets={},Connections={},MarkerNames={},Settings={Smoke=false,Flash=false,Fire=false,Explosions=false,Muzzle=false,Damage=false,Scope=false,EnemyMarkers=false,Pings=false},Stats={Targets=0,Changed=0,Errors=0}}
  App.Removals=F
  local function has(text,fragment)return string.find(text,fragment,1,true)~=nil end
  local function pathOf(instance)
@@ -7519,14 +7519,21 @@ local initializeRemovals=function(App)
  end
  function F:Classify(instance)
   local visual=instance:IsA("BasePart")or instance:IsA("ParticleEmitter")or instance:IsA("Beam")or instance:IsA("Trail")or instance:IsA("Smoke")or instance:IsA("Fire")or instance:IsA("Light")or instance:IsA("PostEffect")or instance:IsA("Decal")or instance:IsA("Explosion")
-  local gui=instance:IsA("GuiObject")or instance:IsA("ScreenGui")
+  local gui=instance:IsA("GuiObject")or instance:IsA("ScreenGui")or instance:IsA("BillboardGui")
   local sound=instance:IsA("Sound")
   if not visual and not gui and not sound then return nil end
   local path=pathOf(instance)
   if gui then
    if has(path,"/menu/")or has(path,"mintproject")then return nil end
    if has(path,"hurtoverlay")then return "Damage"end
-   if has(path,"scopecrosshair")then return "Scope"end
+   if has(path,"scopecrosshair")then
+    local parent=instance.Parent
+    if parent and parent.Name=="ScopeCrosshair"and instance:IsA("ImageLabel")then return "Scope"end
+    if has(path,"/scope/imagelabel/scopecrosshair/")or (parent and parent.Name=="ImageLabel"and parent.Parent and parent.Parent.Name=="ScopeCrosshair"and (instance.Name=="D"or instance.Name=="U"or instance.Name=="L"or instance.Name=="R"or instance.Name=="Scope"))then return "Scope"end
+    return nil
+   end
+   if has(path,"enemy_")and has(path,"/holder/holder/independent/")then return "EnemyMarkers"end
+   if has(path,"/ping/independent/")or has(path,"ping/independent/")then return "Pings"end
    if has(path,"fullflash/capture/")or has(path,"halfflash/capture/")or has(path,"flashbang")or has(path,"flashed")or has(path,"blinded")or has(path,"blindness")or has(path,"flashoverlay")or has(path,"flashscreen")or has(path,"whitescreen")or (string.lower(instance.Name)=="flash" and has(path,"/hud/"))then return "Flash"end
    return nil
   end
@@ -7542,10 +7549,11 @@ local initializeRemovals=function(App)
   if instance:IsA("Explosion")or has(path,"explosion")or has(path,"grenadeexplode")then return "Explosions"end
   return nil
  end
- local function properties(instance)
+ local function properties(instance,category)
+  if category=="Scope"and instance:IsA("ImageLabel")and instance.Parent and instance.Parent.Name=="ScopeCrosshair"then return {ImageTransparency=1}end
   if instance:IsA("BasePart")then return {LocalTransparencyModifier=1}end
   if instance:IsA("ParticleEmitter")or instance:IsA("Beam")or instance:IsA("Trail")then return {Enabled=false,Transparency=NumberSequence.new(1)}end
-  if instance:IsA("Light")or instance:IsA("PostEffect")or instance:IsA("Smoke")or instance:IsA("Fire")or instance:IsA("ScreenGui")then return {Enabled=false}end
+  if instance:IsA("Light")or instance:IsA("PostEffect")or instance:IsA("Smoke")or instance:IsA("Fire")or instance:IsA("ScreenGui")or instance:IsA("BillboardGui")then return {Enabled=false}end
   if instance:IsA("GuiObject")then return {Visible=false}end
   if instance:IsA("Decal")then return {Transparency=1}end
   if instance:IsA("Explosion")then return {Visible=false}end
@@ -7572,7 +7580,7 @@ local initializeRemovals=function(App)
  function F:Apply(record)
   if record.Active then return end
   record.Active=true
-  for property,value in pairs(properties(record.Instance))do
+  for property,value in pairs(properties(record.Instance,record.Category))do
    local ok,original=pcall(function()return record.Instance[property]end)
    if ok then
     record.Original[property]=original
@@ -7596,6 +7604,13 @@ local initializeRemovals=function(App)
  end
  function F:Consider(instance)
   if not self.Alive or self.Targets[instance]then return end
+  local parent=instance.Parent
+  if not self.MarkerNames[instance]and instance:IsA("GuiObject")and parent and parent.Name=="Holder"and parent.Parent and parent.Parent.Name=="Holder"and parent.Parent.Parent and parent.Parent.Parent.Name=="Independent"then
+   self.MarkerNames[instance]=instance:GetPropertyChangedSignal("Name"):Connect(function()
+    self:Forget(instance);self:Consider(instance)
+    for _,child in ipairs(instance:GetDescendants())do self:Forget(child);self:Consider(child)end
+   end)
+  end
   local category=self:Classify(instance)
   if not category then return end
   local record={Instance=instance,Category=category,Original={},Connections={},Active=false}
@@ -7603,6 +7618,7 @@ local initializeRemovals=function(App)
   if self.Settings[category]then self:Apply(record)end
  end
  function F:Forget(instance)
+  if self.MarkerNames[instance]then self.MarkerNames[instance]:Disconnect();self.MarkerNames[instance]=nil end
   local record=self.Targets[instance]
   if not record then return end
   if record.Active then self:Restore(record)end
@@ -7616,6 +7632,7 @@ local initializeRemovals=function(App)
     if value then self:Apply(record)elseif record.Active then self:Restore(record)end
    end
   end
+  if category=="Scope"and App.Crosshair then App.Crosshair:Refresh()end
  end
  function F:Watch(root)
   for _,instance in ipairs(root:GetDescendants())do self:Consider(instance)end
@@ -7626,8 +7643,9 @@ local initializeRemovals=function(App)
   if not self.Alive then return end
   self.Alive=false
   for _,connection in ipairs(self.Connections)do connection:Disconnect()end
+  for _,connection in pairs(self.MarkerNames)do connection:Disconnect()end
   for _,record in pairs(self.Targets)do if record.Active then self:Restore(record)end end
-  table.clear(self.Targets);table.clear(self.Connections);self.Stats.Targets=0
+  table.clear(self.Targets);table.clear(self.Connections);table.clear(self.MarkerNames);self.Stats.Targets=0
  end
  if game.GameId==6993600665 then
   F:Watch(workspace);F:Watch(Lighting);F:Watch(PlayerGui)
@@ -7644,7 +7662,7 @@ local initializeRemovals=function(App)
   end
  end
  local section=App.Tabs.Visuals:AddSection({Name="REMOVALS",Position="left"})
- for _,entry in ipairs({{"Smoke","No smoke"},{"Flash","No flash"},{"Fire","No fire effects"},{"Explosions","No explosion effects"},{"Muzzle","No muzzle flash"},{"Damage","No damage overlay"},{"Scope","No scope overlay"}})do
+ for _,entry in ipairs({{"Smoke","No smoke"},{"Flash","No flash"},{"Fire","No fire effects"},{"Explosions","No explosion effects"},{"Muzzle","No muzzle flash"},{"Damage","No damage overlay"},{"Scope","No scope overlay"},{"EnemyMarkers","No enemy markers"},{"Pings","No ping markers"}})do
   local category=entry[1]
   section:AddLabel(entry[2]):AddToggle({Default=false,Flag="removals_"..category,Callback=function(value)F:Set(category,value)end})
  end
@@ -7654,6 +7672,164 @@ local initializeRemovals=function(App)
 end
 
 initializeRemovals(App)
+local initializeCrosshair=function(App)
+ local Players=game:GetService("Players")
+ local LocalPlayer=Players.LocalPlayer
+ local PlayerGui=LocalPlayer:WaitForChild("PlayerGui")
+ local C={Alive=true,Settings={Force=false,Custom=false,Length=8,Width=2,Gap=4,Dot=true,Outline=false,Color=Color3.fromRGB(242,245,250)},Records={},Connections={},TargetConnections={},Strokes={},Stats={Errors=0}}
+ App.Crosshair=C
+ local Variables
+ if game.GameId==6993600665 then pcall(function()Variables=require(game.ReplicatedFirst.Variables)end)end
+ local function set(instance,property,value)
+  if instance[property]~=value then instance[property]=value end
+ end
+ local function target(record,property)
+  local value=record.Wanted[property]
+  return type(value)=="function"and value(record.Original[property])or value
+ end
+ function C:Drop(instance,property)
+  local record=self.Records[instance]
+  if not record or record.Original[property]==nil then return end
+  if record.Connections[property]then record.Connections[property]:Disconnect()end
+  local original=record.Original[property]
+  if instance==self.Frame and property=="Visible"and Variables then
+   original=not (self.Scope and self.Scope.Visible)and not Variables.nocrosshair
+  end
+  pcall(function()instance[property]=original end)
+  record.Original[property]=nil;record.Wanted[property]=nil;record.Connections[property]=nil
+  if next(record.Original)==nil then self.Records[instance]=nil end
+ end
+ function C:Override(instance,property,value)
+  if not instance then return end
+  local record=self.Records[instance]
+  if not record then record={Original={},Wanted={},Connections={}};self.Records[instance]=record end
+  record.Wanted[property]=value
+  if record.Original[property]==nil then
+   record.Original[property]=instance[property]
+   record.Connections[property]=instance:GetPropertyChangedSignal(property):Connect(function()
+    if not self.Alive or record.Applying or not record.Wanted[property]and record.Wanted[property]~=false then return end
+    local ok,err=pcall(function()
+     local current=instance[property]
+     if current~=target(record,property)then
+      record.Original[property]=current
+      record.Applying=true;set(instance,property,target(record,property));record.Applying=false
+     end
+    end)
+    if not ok then record.Applying=false;self.Stats.Errors+=1;self.LastError=tostring(err)end
+   end)
+  end
+  record.Applying=true;set(instance,property,target(record,property));record.Applying=false
+ end
+ function C:Refresh()
+  if not self.Alive or self.Refreshing then return end
+  self.Refreshing=true
+  local ok,err=pcall(function()
+   local wanted={}
+   local function want(instance,property,value)
+    if not instance then return end
+    wanted[instance]=wanted[instance]or {};wanted[instance][property]=value
+   end
+   local frame,scope=self.Frame,self.Scope
+   if frame and frame.Parent then
+    local fallback=App.Removals and App.Removals.Settings.Scope and scope and scope.Visible
+    if self.Settings.Force or fallback then want(frame,"Visible",true)end
+    if self.Settings.Force or self.Settings.Custom or fallback then want(self.CustomFrame,"Visible",false)end
+    if self.Settings.Custom then
+     local s=self.Settings
+     local span=2*(s.Length+s.Gap)
+     want(frame,"Size",function(native)return UDim2.new(native.X.Scale,span,native.Y.Scale,span)end)
+     for _,name in ipairs({"Right","Left","Top","Bottom","Dot"})do
+      local part=frame:FindFirstChild(name)
+      if part and part:IsA("Frame")then
+       want(part,"BackgroundColor3",s.Color)
+       if name=="Right"or name=="Left"then want(part,"Size",UDim2.fromOffset(s.Length,s.Width))
+       elseif name=="Top"or name=="Bottom"then want(part,"Size",UDim2.fromOffset(s.Width,s.Length))
+       else want(part,"Size",UDim2.fromOffset(s.Width,s.Width));want(part,"Visible",s.Dot)end
+       if s.Outline and not self.Strokes[part]then
+        local stroke=Instance.new("UIStroke")
+        stroke.Name="MintProjectCrosshairOutline";stroke.Thickness=1;stroke.Color=Color3.fromRGB(7,9,13);stroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border;stroke.Parent=part
+        self.Strokes[part]=stroke
+       end
+      end
+     end
+    end
+   end
+   local remove={}
+   for instance,record in pairs(self.Records)do
+    for property in pairs(record.Original)do
+     if not wanted[instance]or wanted[instance][property]==nil then table.insert(remove,{instance,property})end
+    end
+   end
+   for _,entry in ipairs(remove)do self:Drop(entry[1],entry[2])end
+   for instance,props in pairs(wanted)do for property,value in pairs(props)do self:Override(instance,property,value)end end
+   for part,stroke in pairs(self.Strokes)do
+    if not self.Settings.Custom or not self.Settings.Outline or not part.Parent then stroke:Destroy();self.Strokes[part]=nil end
+   end
+  end)
+  self.Refreshing=false
+  if not ok then self.Stats.Errors+=1;self.LastError=tostring(err)end
+ end
+ function C:Resolve()
+  if not self.Alive then return end
+  local hud=PlayerGui:FindFirstChild("HUD")
+  local root=hud and hud:FindFirstChild("Crosshair")
+  local frame=root and root:FindFirstChild("Crosshair")
+  local scope=root and root:FindFirstChild("ScopeCrosshair")
+  if self.Frame~=frame or self.Scope~=scope then
+   for _,connection in ipairs(self.TargetConnections)do connection:Disconnect()end
+   table.clear(self.TargetConnections)
+   self.Root=root;self.Frame=frame;self.Scope=scope;self.CustomFrame=root and root:FindFirstChild("CustomFrame")
+   if scope then table.insert(self.TargetConnections,scope:GetPropertyChangedSignal("Visible"):Connect(function()self:Refresh()end))end
+   if root then table.insert(self.TargetConnections,root.ChildAdded:Connect(function()task.defer(function()self:Resolve();self:Refresh()end)end))end
+  end
+  self:Refresh()
+ end
+ function C:Set(key,value)self.Settings[key]=value;self:Refresh()end
+ function C:Destroy()
+  if not self.Alive then return end
+  self.Alive=false
+  for _,connection in ipairs(self.Connections)do connection:Disconnect()end
+  for _,connection in ipairs(self.TargetConnections)do connection:Disconnect()end
+  local remove={};for instance,record in pairs(self.Records)do for property in pairs(record.Original)do table.insert(remove,{instance,property})end end
+  for _,entry in ipairs(remove)do self:Drop(entry[1],entry[2])end
+  for _,stroke in pairs(self.Strokes)do stroke:Destroy()end
+  table.clear(self.Connections);table.clear(self.TargetConnections);table.clear(self.Strokes)
+ end
+ C:Resolve()
+ if C.Frame then
+  local right=C.Frame:FindFirstChild("Right")
+  if right then C.Settings.Color=right.BackgroundColor3 end
+ end
+ local pending=false
+ local function schedule()
+  if pending or not C.Alive then return end
+  pending=true;task.defer(function()pending=false;C:Resolve()end)
+ end
+ table.insert(C.Connections,PlayerGui.DescendantAdded:Connect(function(instance)
+  if instance.Name=="Crosshair"or instance.Name=="ScopeCrosshair"or instance.Name=="CustomFrame"then schedule()end
+ end))
+ table.insert(C.Connections,LocalPlayer.CharacterAdded:Connect(schedule))
+ local section=App.Tabs.Visuals:AddSection({Name="CROSSHAIR",Position="right"})
+ section:AddLabel("Force crosshair"):AddToggle({Default=false,Flag="crosshair_force",Callback=function(v)C:Set("Force",v)end})
+ local row=section:AddLabel("Game crosshair")
+ local toggle=row:AddToggle({Default=false,Flag="crosshair_custom",Callback=function(v)C:Set("Custom",v)end})
+ toggle.Root.LayoutOrder=10
+ local color=row:AddColorPicker({Default=C.Settings.Color,Flag="crosshair_color",Callback=function(v)C:Set("Color",v)end})
+ color.Root.LayoutOrder=0
+ local options=row:AddOption();options.Trigger.LayoutOrder=20
+ C.Options=options
+ for _,entry in ipairs({{"Length","Length",1,30,8},{"Width","Width",1,8,2},{"Gap","Gap",0,20,4}})do
+  local key=entry[1]
+  options:AddLabel(entry[2]):AddSlider({Default=entry[5],Min=entry[3],Max=entry[4],Rounding=0,Flag="crosshair_"..key,Callback=function(v)C:Set(key,v)end})
+ end
+ options:AddLabel("Center dot"):AddToggle({Default=true,Flag="crosshair_dot",Callback=function(v)C:Set("Dot",v)end})
+ options:AddLabel("Outline"):AddToggle({Default=false,Flag="crosshair_outline",Callback=function(v)C:Set("Outline",v)end})
+ local unload=App.Library.Unload
+ function App.Library:Unload()C:Destroy();return unload(self)end
+ return C
+end
+
+initializeCrosshair(App)
 ENV.MintProjectNeverloseCS2=App
 ENV.MintProjectUI=App
 Window.Signal:SetValue(true)

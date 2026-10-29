@@ -13,6 +13,7 @@ library=library.replace('if not NeverLose:IsMouseOverFrame(Window.Root) and not 
 const initializeUI=fs.readFileSync(path.join(root,'modules/UIRepairs.luau'),'utf8').replace(/^return\s+/,'');
 const initializeESP=fs.readFileSync(path.join(root,'modules/PlayerESP.luau'),'utf8').replace(/^return\s+/,'');
 const initializeRemovals=fs.readFileSync(path.join(root,'modules/VisualRemovals.luau'),'utf8').replace(/^return\s+/,'');
+const initializeCrosshair=fs.readFileSync(path.join(root,'modules/GameCrosshair.luau'),'utf8').replace(/^return\s+/,'');
 const whiteIcons=fs.readFileSync(path.join(root,'assets/equipment/WhiteIcons.luau'),'utf8').replace(/^return\s+/,'');
 const source=`-- MintProject | Neverlose CS2 UI
 -- UI: 4lpaca / https://github.com/0zdac/NLCS2UI (MIT)
@@ -42,7 +43,7 @@ if not isfile(configFolder.."/Default") and isfile("MintProject/NeverloseCS2/Def
 end
 local Window=Library:CreateWindow({Name="Neverlose",Content=name,Logo=Library.GlobalLogo,Size=Library.Scales.Large,ConfigFolder=configFolder,Enable3DRenderer=false,Keybind="RightShift"})
 Window:SetAccount({Username=game:GetService("Players").LocalPlayer.DisplayName,Expires="MintProject"})
-local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.2",Game={Name=name,PlaceId=game.PlaceId}}
+local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.3",Game={Name=name,PlaceId=game.PlaceId}}
 local unloaded=false
 local originalUnload=Library.Unload
 function Library:Unload()
@@ -138,6 +139,8 @@ local initializeESP=${initializeESP}
 initializeESP(App,${whiteIcons})
 local initializeRemovals=${initializeRemovals}
 initializeRemovals(App)
+local initializeCrosshair=${initializeCrosshair}
+initializeCrosshair(App)
 ENV.MintProjectNeverloseCS2=App
 ENV.MintProjectUI=App
 Window.Signal:SetValue(true)
