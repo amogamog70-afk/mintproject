@@ -3,7 +3,7 @@ return function(App,WhiteIcons)
  local RunService=game:GetService("RunService")
  local LocalPlayer=Players.LocalPlayer
  assert(Drawing and Drawing.new,"Drawing API unavailable")
- local ESP={Alive=true,Enabled=false,Entries={},Connections={},ItemCatalog={},Settings={Box=true,Names=true,Distance=true,Health=true,HealthNumber=true,ItemName=true,ItemIcon=true,TeamCheck=false,MaxDistance=1800,TextSize=13,Color=Color3.fromRGB(225,233,245)},Stats={Visible=0,Tracked=0,Drawings=0,Icons=0,FrameMs=0,Errors=0}}
+ local ESP={Alive=true,Enabled=false,Entries={},Connections={},ItemCatalog={},Settings={Box=true,Names=true,Distance=true,Health=true,HealthNumber=true,ItemName=true,ItemIcon=true,TeamCheck=false,FixedSize=true,BoxWidth=64,BoxHeight=112,MaxDistance=1800,TextSize=13,Color=Color3.fromRGB(225,233,245)},Stats={Visible=0,Tracked=0,Drawings=0,Icons=0,FrameMs=0,Errors=0}}
  App.ESP=ESP
  local Overlay=Instance.new("ScreenGui")
  Overlay.Name="MintProjectEquipmentESP";Overlay.IgnoreGuiInset=true;Overlay.ResetOnSpawn=false;Overlay.DisplayOrder=100
@@ -92,6 +92,35 @@ return function(App,WhiteIcons)
    entry.Half=Vector3.new(clamp(size.X,2,6),clamp(size.Y,3,9),clamp(size.Z,1.5,4))*.5
   end
  end
+ function ESP:ProjectBounds(camera,entry,now)
+  local viewport=camera.ViewportSize
+  local rootFrame=entry.Root.CFrame
+  local center=rootFrame:PointToWorldSpace(entry.Offset)
+  local projected=camera:WorldToViewportPoint(center)
+  if projected.Z<.5 then return nil end
+  if self.Settings.FixedSize then
+   local w,h=self.Settings.BoxWidth,self.Settings.BoxHeight
+   local x,y=floor(projected.X-w*.5+.5),floor(projected.Y-h*.5+.5)
+   if x+w<0 or x>viewport.X or y+h<0 or y>viewport.Y then return nil end
+   return x,y,w,h
+  end
+  local radius=entry.Half.Magnitude*viewport.Y/(2*math.tan(math.rad(camera.FieldOfView)*.5)*math.max(.1,projected.Z-entry.Half.Magnitude))
+  if projected.X+radius<0 or projected.X-radius>viewport.X or projected.Y+radius<0 or projected.Y-radius>viewport.Y then return nil end
+  if now>=(entry.NextBounds or 0)then entry.NextBounds=now+.25;measure(entry)end
+  -- Project only the body, excluding equipment and accessories.
+  local minX,minY,maxX,maxY=math.huge,math.huge,-math.huge,-math.huge
+  for _,sign in ipairs(CORNERS)do
+   local point=camera:WorldToViewportPoint(rootFrame:PointToWorldSpace(entry.Offset+entry.Half*sign))
+   if point.Z<.1 then return nil end
+   minX=math.min(minX,point.X);minY=math.min(minY,point.Y)
+   maxX=math.max(maxX,point.X);maxY=math.max(maxY,point.Y)
+  end
+  if maxX<0 or minX>viewport.X or maxY<0 or minY>viewport.Y then return nil end
+  local x,y=floor(minX+.5),floor(minY+.5)
+  local w,h=floor(maxX+.5)-x,floor(maxY+.5)-y
+  if w<2 or h<5 or h>viewport.Y*2 then return nil end
+  return x,y,w,h
+ end
  local function bindCharacter(entry,character)
   entry.Character=character;entry.Root=nil;entry.Humanoid=nil;entry.SmoothHP=nil;entry.NextResolve=0
   entry.Item=nil;entry.NextItem=0
@@ -165,7 +194,6 @@ return function(App,WhiteIcons)
   local start=os.clock()
   local camera=workspace.CurrentCamera
   if not camera then for _,e in pairs(self.Entries)do hide(e)end;self.Stats.Visible=0;return end
-  local viewport=camera.ViewportSize
   local localCharacter=LocalPlayer.Character
   local localRoot=localCharacter and localCharacter:FindFirstChild("HumanoidRootPart")
   local origin=localRoot and localRoot.Position or camera.CFrame.Position
@@ -178,26 +206,8 @@ return function(App,WhiteIcons)
    if not root or not root.Parent or not hum or hum.Health<=0 or (settings.TeamCheck and self:IsTeammate(e.Player))then hide(e);continue end
    local delta=root.Position-origin
    if delta:Dot(delta)>maxDistanceSquared then hide(e);continue end
-   local rootFrame=root.CFrame
-   local center=rootFrame:PointToWorldSpace(e.Offset)
-   local projected=camera:WorldToViewportPoint(center)
-   if projected.Z<.5 then hide(e);continue end
-   local radius=e.Half.Magnitude*viewport.Y/(2*math.tan(math.rad(camera.FieldOfView)*.5)*math.max(.1,projected.Z-e.Half.Magnitude))
-   if projected.X+radius<0 or projected.X-radius>viewport.X or projected.Y+radius<0 or projected.Y-radius>viewport.Y then hide(e);continue end
-   if now>=(e.NextBounds or 0)then e.NextBounds=now+.25;measure(e)end
-   -- Project only the body, excluding equipment and accessories.
-   local minX,minY,maxX,maxY=math.huge,math.huge,-math.huge,-math.huge
-   local near=false
-   for _,sign in ipairs(CORNERS)do
-    local point=camera:WorldToViewportPoint(rootFrame:PointToWorldSpace(e.Offset+e.Half*sign))
-    if point.Z<.1 then near=true;break end
-    minX=math.min(minX,point.X);minY=math.min(minY,point.Y)
-    maxX=math.max(maxX,point.X);maxY=math.max(maxY,point.Y)
-   end
-   if near or maxX<0 or minX>viewport.X or maxY<0 or minY>viewport.Y then hide(e);continue end
-   local x,y=floor(minX+.5),floor(minY+.5)
-   local w,h=floor(maxX+.5)-x,floor(maxY+.5)-y
-   if w<2 or h<5 or h>viewport.Y*2 then hide(e);continue end
+   local x,y,w,h=self:ProjectBounds(camera,e,now)
+   if not x then hide(e);continue end
    e.Visible=true;visible+=1
    local position,size=Vector2.new(x,y),Vector2.new(w,h)
    set(e.Outline,"Position",position);set(e.Outline,"Size",size);show(e.Outline,settings.Box)
@@ -316,6 +326,9 @@ return function(App,WhiteIcons)
  ESP.Toggle=enabled.Toggle
  enabled.Options:AddLabel("Text size"):AddSlider({Default=13,Min=11,Max=18,Rounding=0,Flag="player_esp_text",Callback=function(v)ESP.Settings.TextSize=v end})
  enabled.Options:AddLabel("Distance"):AddSlider({Default=1800,Min=100,Max=5000,Rounding=0,Flag="player_esp_range",Callback=function(v)ESP.Settings.MaxDistance=v end})
+ enabled.Options:AddLabel("Fixed size"):AddToggle({Default=true,Flag="player_esp_fixed_size",Callback=function(v)ESP.Settings.FixedSize=v end})
+ enabled.Options:AddLabel("Box width"):AddSlider({Default=64,Min=20,Max=240,Rounding=0,Type=" px",Flag="player_esp_box_width",Callback=function(v)ESP.Settings.BoxWidth=v end})
+ enabled.Options:AddLabel("Box height"):AddSlider({Default=112,Min=40,Max=360,Rounding=0,Type=" px",Flag="player_esp_box_height",Callback=function(v)ESP.Settings.BoxHeight=v end})
  row("Box","Box","Color")
  row("Names","Name","NameColor")
  row("Distance","Distance","DistanceColor")

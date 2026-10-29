@@ -34,6 +34,12 @@ Validation: compiled the complete build; live checks for FOV enforcement/restora
 
 Validation: full Luau compilation and live fixtures for all four filters, master toggling, manual-emission transparency, late BulletHole tagging, pooled Trail reuse, transient-target cleanup, native damage-number template restoration, and exclusions for weapon ammo meshes/decorative trails. Complete screenshot review remains unavailable.
 
+## Fixed ESP size in 2026.10.29.8
+
+ESP → Enabled → three-dot options contains Fixed size (on by default), Box width and Box height. The default box measures 64×112 screen pixels at every distance and player rotation. Text keeps its configured pixel size; health bars, names, distance and equipment remain positioned relative to the box. Fixed mode projects only the center and skips periodic body measurement/eight-corner projection. Turning Fixed size off restores the original body-bound projection.
+
+Validation: full Luau compilation; fixed dimensions at 10/40/200/1000 studs and four rotations; custom width/height; behind-camera/offscreen hiding; dynamic-mode distance scaling; live box/health-bar alignment and reload cleanup. Complete screenshot review remains unavailable.
+
 ## Crosshair and markers
 
 - No scope overlay removes the scope mask, edge bars and blur while keeping the zoom container intact. Four white sniper-reticle lines replace the mask. Its options control line length, center gap, spin and spin speed.
