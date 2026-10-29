@@ -291,8 +291,11 @@ return function(App,WhiteIcons)
  function App.Library:Unload()ESP:Destroy();return originalUnload(self)end
  local main=App.Tabs.ESP:AddSection({Name="PLAYERS",Position="left"})
  ESP.Rows={}
- local function color(parent,label,key,flag)
-  return parent:AddLabel(label):AddColorPicker({Default=ESP.Settings[key],Flag=flag or "player_esp_"..key,Callback=function(v)ESP.Settings[key]=v;ESP.ColorRevision+=1 end})
+ for _,key in ipairs({"TextOutlineColor","BoxOutlineColor","HealthMidColor","HealthLowColor","HealthTrackColor","HealthOutlineColor","IconOutlineColor"})do
+  App.Library.Flags["player_esp_"..key]={GetValue=function()return ESP.Settings[key]end,SetValue=function(_,value)
+   if typeof(value)=="string"then value=Color3.fromHex(value:gsub("#",""))end
+   if typeof(value)=="Color3"then ESP.Settings[key]=value;ESP.ColorRevision+=1 end
+  end}
  end
  local function row(key,label,colorKey,gear)
   local holder=main:AddLabel(label)
@@ -312,24 +315,17 @@ return function(App,WhiteIcons)
  local enabled=row("Enabled","Enabled",nil,true)
  ESP.Toggle=enabled.Toggle
  enabled.Options:AddLabel("Text size"):AddSlider({Default=13,Min=11,Max=18,Rounding=0,Flag="player_esp_text",Callback=function(v)ESP.Settings.TextSize=v end})
- enabled.Options:AddLabel("Max distance"):AddSlider({Default=1800,Min=100,Max=5000,Rounding=0,Type=" studs",Flag="player_esp_range",Callback=function(v)ESP.Settings.MaxDistance=v end})
- color(enabled.Options,"Text outlines","TextOutlineColor")
- local box=row("Box","Box","Color",true)
- color(box.Options,"Outline","BoxOutlineColor")
+ enabled.Options:AddLabel("Distance"):AddSlider({Default=1800,Min=100,Max=5000,Rounding=0,Flag="player_esp_range",Callback=function(v)ESP.Settings.MaxDistance=v end})
+ row("Box","Box","Color")
  row("Names","Name","NameColor")
  row("Distance","Distance","DistanceColor")
  local health=row("Health","Health bar","HealthHighColor",true)
  health.Options:AddLabel("Thickness"):AddSlider({Default=2,Min=1,Max=5,Rounding=0,Type=" px",Flag="player_esp_hp_width",Callback=function(v)ESP.Settings.HealthWidth=v end})
  health.Options:AddLabel("Gradient"):AddToggle({Default=true,Flag="player_esp_hp_gradient",Callback=function(v)ESP.Settings.HealthGradient=v;ESP.ColorRevision+=1 end})
  health.Options:AddLabel("Health number"):AddToggle({Default=true,Flag="player_esp_HealthNumber",Callback=function(v)ESP.Settings.HealthNumber=v end})
- color(health.Options,"Medium HP","HealthMidColor")
- color(health.Options,"Low HP","HealthLowColor")
- color(health.Options,"Background","HealthTrackColor")
- color(health.Options,"Outline","HealthOutlineColor")
  row("ItemName","Held item","ItemColor")
  local icon=row("ItemIcon","Item icon","IconColor",true)
  icon.Options:AddLabel("Original colors"):AddToggle({Default=false,Flag="player_esp_original_icons",Callback=function(v)ESP.Settings.OriginalIcons=v end})
- color(icon.Options,"Outline","IconOutlineColor")
  row("TeamCheck","Team check")
  ESP:SetEnabled(true)
  return ESP

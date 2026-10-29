@@ -125,9 +125,12 @@ return function(Library)
  end
  function Library:CreateOptionWindow(anchor,zindex)
   local z=(zindex or 9)+10
-  local root=create("Frame",nil,{Name="Options",Size=UDim2.fromOffset(280,80),BackgroundColor3=Color3.fromRGB(20,22,27),BorderSizePixel=0,ZIndex=z,Visible=false})
-  corner(root,9);border(root)
-  local content=create("ScrollingFrame",root,{Name="Content",Position=UDim2.fromOffset(6,6),Size=UDim2.new(1,-12,1,-12),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=2,ScrollBarImageColor3=Color3.fromRGB(85,91,108),CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=z+1})
+  local root=create("Frame",nil,{Name="Options",Size=UDim2.fromOffset(220,75),BackgroundColor3=Color3.fromRGB(20,22,27),BackgroundTransparency=.035,BorderSizePixel=0,ZIndex=z,Visible=false})
+  corner(root,10)
+  create("UIStroke",root,{Thickness=1,Color=Color3.fromRGB(45,48,58),Transparency=.65})
+  local shadow=Library:CreateShadow(root)
+  local content=create("ScrollingFrame",root,{Name="Content",Size=UDim2.fromScale(1,1),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=2,ScrollBarImageColor3=Color3.fromRGB(85,91,108),CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=z+1})
+  content:SetAttribute("CompactOptions",true)
   local list=create("UIListLayout",content,{SortOrder=Enum.SortOrder.LayoutOrder})
   local signal=Library:CreateSignal(false)
   local o={Root=root,Anchor=anchor,Signal=signal}
@@ -135,7 +138,7 @@ return function(Library)
    local viewport=workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280,720)
    local height=list.AbsoluteContentSize.Y
    if height==0 then for _,child in ipairs(content:GetChildren())do if child:IsA("GuiObject")and child.Visible then height+=child.Size.Y.Offset end end end
-   root.Size=UDim2.fromOffset(math.min(280,math.max(200,viewport.X-16)),math.clamp(height+12,42,math.max(42,viewport.Y-16)))
+   root.Size=UDim2.fromOffset(math.min(220,math.max(180,viewport.X-16)),math.clamp(height,30,math.max(30,viewport.Y-16)))
    if root.Parent then place(root,anchor)end
   end
   local function render(value)
@@ -143,11 +146,11 @@ return function(Library)
    if value then
     if S.ActiveOption and S.ActiveOption~=o then S.ActiveOption.Signal:SetValue(false)end
     if S.ActivePicker then S.ActivePicker.SetRender(false)end
-    S.ActiveOption=o;root.Parent=Library.ScreenGui;root.Visible=true;resize()
+    S.ActiveOption=o;root.Parent=Library.ScreenGui;root.Visible=true;shadow:Render(true);resize()
    else
     if S.ActiveOption==o then S.ActiveOption=nil end
     if S.ActivePicker and S.ActivePicker.Anchor:IsDescendantOf(root)then S.ActivePicker.SetRender(false)end
-    root.Visible=false;root.Parent=nil
+    shadow:Render(false);root.Visible=false;root.Parent=nil
    end
   end
   connect(list:GetPropertyChangedSignal("AbsoluteContentSize"),resize)
@@ -172,9 +175,13 @@ return function(Library)
    if width<=0 then width=row.Parent and row.Parent.AbsoluteSize.X or 220 end
    if width<=0 then width=220 end
    local controls,total,stacked=0,0,false
+   local compact=row.Parent and row.Parent:GetAttribute("CompactOptions")
    for _,child in ipairs(handler:GetChildren())do if child:IsA("GuiObject")then
+    if child:GetAttribute("FullWidthSlider")then
+     child.Size=compact and UDim2.fromOffset(110,20)or UDim2.new(1,0,0,20)
+     if not compact then stacked=true end
+    end
     controls+=1;total+=child.Size.X.Offset
-    if child:GetAttribute("FullWidthSlider")then stacked=true end
    end end
    total+=math.max(0,controls-1)*5
    local textWidth=TextService:GetTextSize(label.Text,label.TextSize,label.Font,Vector2.new(10000,100)).X

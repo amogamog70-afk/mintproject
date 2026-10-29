@@ -6834,9 +6834,12 @@ local initializeUI=function(Library)
  end
  function Library:CreateOptionWindow(anchor,zindex)
   local z=(zindex or 9)+10
-  local root=create("Frame",nil,{Name="Options",Size=UDim2.fromOffset(280,80),BackgroundColor3=Color3.fromRGB(20,22,27),BorderSizePixel=0,ZIndex=z,Visible=false})
-  corner(root,9);border(root)
-  local content=create("ScrollingFrame",root,{Name="Content",Position=UDim2.fromOffset(6,6),Size=UDim2.new(1,-12,1,-12),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=2,ScrollBarImageColor3=Color3.fromRGB(85,91,108),CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=z+1})
+  local root=create("Frame",nil,{Name="Options",Size=UDim2.fromOffset(220,75),BackgroundColor3=Color3.fromRGB(20,22,27),BackgroundTransparency=.035,BorderSizePixel=0,ZIndex=z,Visible=false})
+  corner(root,10)
+  create("UIStroke",root,{Thickness=1,Color=Color3.fromRGB(45,48,58),Transparency=.65})
+  local shadow=Library:CreateShadow(root)
+  local content=create("ScrollingFrame",root,{Name="Content",Size=UDim2.fromScale(1,1),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=2,ScrollBarImageColor3=Color3.fromRGB(85,91,108),CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ZIndex=z+1})
+  content:SetAttribute("CompactOptions",true)
   local list=create("UIListLayout",content,{SortOrder=Enum.SortOrder.LayoutOrder})
   local signal=Library:CreateSignal(false)
   local o={Root=root,Anchor=anchor,Signal=signal}
@@ -6844,7 +6847,7 @@ local initializeUI=function(Library)
    local viewport=workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280,720)
    local height=list.AbsoluteContentSize.Y
    if height==0 then for _,child in ipairs(content:GetChildren())do if child:IsA("GuiObject")and child.Visible then height+=child.Size.Y.Offset end end end
-   root.Size=UDim2.fromOffset(math.min(280,math.max(200,viewport.X-16)),math.clamp(height+12,42,math.max(42,viewport.Y-16)))
+   root.Size=UDim2.fromOffset(math.min(220,math.max(180,viewport.X-16)),math.clamp(height,30,math.max(30,viewport.Y-16)))
    if root.Parent then place(root,anchor)end
   end
   local function render(value)
@@ -6852,11 +6855,11 @@ local initializeUI=function(Library)
    if value then
     if S.ActiveOption and S.ActiveOption~=o then S.ActiveOption.Signal:SetValue(false)end
     if S.ActivePicker then S.ActivePicker.SetRender(false)end
-    S.ActiveOption=o;root.Parent=Library.ScreenGui;root.Visible=true;resize()
+    S.ActiveOption=o;root.Parent=Library.ScreenGui;root.Visible=true;shadow:Render(true);resize()
    else
     if S.ActiveOption==o then S.ActiveOption=nil end
     if S.ActivePicker and S.ActivePicker.Anchor:IsDescendantOf(root)then S.ActivePicker.SetRender(false)end
-    root.Visible=false;root.Parent=nil
+    shadow:Render(false);root.Visible=false;root.Parent=nil
    end
   end
   connect(list:GetPropertyChangedSignal("AbsoluteContentSize"),resize)
@@ -6881,9 +6884,13 @@ local initializeUI=function(Library)
    if width<=0 then width=row.Parent and row.Parent.AbsoluteSize.X or 220 end
    if width<=0 then width=220 end
    local controls,total,stacked=0,0,false
+   local compact=row.Parent and row.Parent:GetAttribute("CompactOptions")
    for _,child in ipairs(handler:GetChildren())do if child:IsA("GuiObject")then
+    if child:GetAttribute("FullWidthSlider")then
+     child.Size=compact and UDim2.fromOffset(110,20)or UDim2.new(1,0,0,20)
+     if not compact then stacked=true end
+    end
     controls+=1;total+=child.Size.X.Offset
-    if child:GetAttribute("FullWidthSlider")then stacked=true end
    end end
    total+=math.max(0,controls-1)*5
    local textWidth=TextService:GetTextSize(label.Text,label.TextSize,label.Font,Vector2.new(10000,100)).X
@@ -7032,7 +7039,7 @@ if not isfile(configFolder.."/Default") and isfile("MintProject/NeverloseCS2/Def
 end
 local Window=Library:CreateWindow({Name="Neverlose",Content=name,Logo=Library.GlobalLogo,Size=Library.Scales.Large,ConfigFolder=configFolder,Enable3DRenderer=false,Keybind="RightShift"})
 Window:SetAccount({Username=game:GetService("Players").LocalPlayer.DisplayName,Expires="MintProject"})
-local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.1",Game={Name=name,PlaceId=game.PlaceId}}
+local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.2",Game={Name=name,PlaceId=game.PlaceId}}
 local unloaded=false
 local originalUnload=Library.Unload
 function Library:Unload()
@@ -7417,8 +7424,11 @@ local initializeESP=function(App,WhiteIcons)
  function App.Library:Unload()ESP:Destroy();return originalUnload(self)end
  local main=App.Tabs.ESP:AddSection({Name="PLAYERS",Position="left"})
  ESP.Rows={}
- local function color(parent,label,key,flag)
-  return parent:AddLabel(label):AddColorPicker({Default=ESP.Settings[key],Flag=flag or "player_esp_"..key,Callback=function(v)ESP.Settings[key]=v;ESP.ColorRevision+=1 end})
+ for _,key in ipairs({"TextOutlineColor","BoxOutlineColor","HealthMidColor","HealthLowColor","HealthTrackColor","HealthOutlineColor","IconOutlineColor"})do
+  App.Library.Flags["player_esp_"..key]={GetValue=function()return ESP.Settings[key]end,SetValue=function(_,value)
+   if typeof(value)=="string"then value=Color3.fromHex(value:gsub("#",""))end
+   if typeof(value)=="Color3"then ESP.Settings[key]=value;ESP.ColorRevision+=1 end
+  end}
  end
  local function row(key,label,colorKey,gear)
   local holder=main:AddLabel(label)
@@ -7438,24 +7448,17 @@ local initializeESP=function(App,WhiteIcons)
  local enabled=row("Enabled","Enabled",nil,true)
  ESP.Toggle=enabled.Toggle
  enabled.Options:AddLabel("Text size"):AddSlider({Default=13,Min=11,Max=18,Rounding=0,Flag="player_esp_text",Callback=function(v)ESP.Settings.TextSize=v end})
- enabled.Options:AddLabel("Max distance"):AddSlider({Default=1800,Min=100,Max=5000,Rounding=0,Type=" studs",Flag="player_esp_range",Callback=function(v)ESP.Settings.MaxDistance=v end})
- color(enabled.Options,"Text outlines","TextOutlineColor")
- local box=row("Box","Box","Color",true)
- color(box.Options,"Outline","BoxOutlineColor")
+ enabled.Options:AddLabel("Distance"):AddSlider({Default=1800,Min=100,Max=5000,Rounding=0,Flag="player_esp_range",Callback=function(v)ESP.Settings.MaxDistance=v end})
+ row("Box","Box","Color")
  row("Names","Name","NameColor")
  row("Distance","Distance","DistanceColor")
  local health=row("Health","Health bar","HealthHighColor",true)
  health.Options:AddLabel("Thickness"):AddSlider({Default=2,Min=1,Max=5,Rounding=0,Type=" px",Flag="player_esp_hp_width",Callback=function(v)ESP.Settings.HealthWidth=v end})
  health.Options:AddLabel("Gradient"):AddToggle({Default=true,Flag="player_esp_hp_gradient",Callback=function(v)ESP.Settings.HealthGradient=v;ESP.ColorRevision+=1 end})
  health.Options:AddLabel("Health number"):AddToggle({Default=true,Flag="player_esp_HealthNumber",Callback=function(v)ESP.Settings.HealthNumber=v end})
- color(health.Options,"Medium HP","HealthMidColor")
- color(health.Options,"Low HP","HealthLowColor")
- color(health.Options,"Background","HealthTrackColor")
- color(health.Options,"Outline","HealthOutlineColor")
  row("ItemName","Held item","ItemColor")
  local icon=row("ItemIcon","Item icon","IconColor",true)
  icon.Options:AddLabel("Original colors"):AddToggle({Default=false,Flag="player_esp_original_icons",Callback=function(v)ESP.Settings.OriginalIcons=v end})
- color(icon.Options,"Outline","IconOutlineColor")
  row("TeamCheck","Team check")
  ESP:SetEnabled(true)
  return ESP

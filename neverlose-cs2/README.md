@@ -14,10 +14,11 @@ The ESP tab contains player boxes, names, distance, health, held-item names and 
 
 Run `node tools/build-neverlose-cs2.mjs` from this folder. The self-contained build is written to `dist/main.luau` and `MintProject Neverlose CS2.lua`. The PNG silhouettes are embedded in `assets/equipment/WhiteIcons.luau` and cached locally by the executor.
 
-## UI repairs in 2026.10.29.1
+## UI repairs in 2026.10.29.2
 
 - The HSV picker uses gradients drawn by Roblox, without an external color-map texture. Hex entry validates input. Dragging ends on release outside the popup or when the window loses focus.
-- Sliders reserve a separate line below the label, validate numbers and clamp their range. Long rows also move their controls below the label when needed.
+- Compact options use the original 220-pixel panel style and inline sliders when they fit. Long rows move controls below the label when needed. Numbers are validated and clamped.
+- The ESP options retain text size, distance, health thickness/gradient/numbers and original icon colors. Secondary outline/background color controls are hidden; existing saved values remain supported.
 - Option and color panels stay inside the viewport. Closing the menu or changing tabs closes open panels. Nested color panels keep their parent options open.
 - Unloading disconnects the added input handlers and restores modified visual properties.
 
