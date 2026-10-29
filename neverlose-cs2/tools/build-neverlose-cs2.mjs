@@ -7,6 +7,7 @@ library=library.replace('while true do task.wait(5.75);','while NeverLose.Alive 
 library=library.replace('if isfile(path) and ConfigLib.SelectedConfig == "Default" then','if NeverLose.Alive and NeverLose.AutoSave ~= false and isfile(path) and ConfigLib.SelectedConfig == "Default" then');
 library=library.replace('task.delay(1,function()\n\t\t\tif ConfigLib.SelectedConfig', 'task.delay(1,function()\n\t\t\tif not NeverLose.Alive then return end;\n\t\t\tif ConfigLib.SelectedConfig');
 library=library.replace('Window:_InitConfig();','Window.Config = Window:_InitConfig();');
+library=library.replace('local SecureSignal;', 'DropdownLib.Root = Dropdown;\n\t\tlocal SecureSignal;\n\t\tDropdownLib.DisconnectInput=function()if SecureSignal then SecureSignal:Disconnect();SecureSignal=nil end end;');
 library=library.replace('local ColorPickerLib = {};\n\t\tlocal ColorPicker = Instance.new("Frame")','local ColorPickerLib = {};\n\t\tlocal ColorPicker = Instance.new("Frame")\n\t\tColorPickerLib.Root = ColorPicker;');
 library=library.replace('local Window = NeverLose:CreateOptionWindow(Option , ZINdex + 13);','local Window = NeverLose:CreateOptionWindow(Option , ZINdex + 13);\n\t\tWindow.Trigger = Option;');
 library=library.replace('if not NeverLose:IsMouseOverFrame(Window.Root) and not NeverLose:IsMouseOverFrame(Option) then','if not NeverLose:IsMouseOverFrame(Window.Root) and not NeverLose:IsMouseOverFrame(Option) and not (NeverLose.UIRepairs and NeverLose.UIRepairs.ActivePicker) then');
@@ -14,6 +15,8 @@ const initializeUI=fs.readFileSync(path.join(root,'modules/UIRepairs.luau'),'utf
 const initializeESP=fs.readFileSync(path.join(root,'modules/PlayerESP.luau'),'utf8').replace(/^return\s+/,'');
 const initializeRemovals=fs.readFileSync(path.join(root,'modules/VisualRemovals.luau'),'utf8').replace(/^return\s+/,'');
 const initializeCrosshair=fs.readFileSync(path.join(root,'modules/GameCrosshair.luau'),'utf8').replace(/^return\s+/,'');
+const initializeWorld=fs.readFileSync(path.join(root,'modules/WorldVisuals.luau'),'utf8').replace(/^return\s+/,'');
+const skyPresets=fs.readFileSync(path.join(root,'assets/skyboxes/Presets.luau'),'utf8').replace(/^--[^\n]*\n/,'').replace(/^return\s+/,'');
 const whiteIcons=fs.readFileSync(path.join(root,'assets/equipment/WhiteIcons.luau'),'utf8').replace(/^return\s+/,'');
 const source=`-- MintProject | Neverlose CS2 UI
 -- UI: 4lpaca / https://github.com/0zdac/NLCS2UI (MIT)
@@ -43,7 +46,7 @@ if not isfile(configFolder.."/Default") and isfile("MintProject/NeverloseCS2/Def
 end
 local Window=Library:CreateWindow({Name="Neverlose",Content=name,Logo=Library.GlobalLogo,Size=Library.Scales.Large,ConfigFolder=configFolder,Enable3DRenderer=false,Keybind="RightShift"})
 Window:SetAccount({Username=game:GetService("Players").LocalPlayer.DisplayName,Expires="MintProject"})
-local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.5",Game={Name=name,PlaceId=game.PlaceId}}
+local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.6",Game={Name=name,PlaceId=game.PlaceId}}
 local unloaded=false
 local originalUnload=Library.Unload
 function Library:Unload()
@@ -141,6 +144,8 @@ local initializeRemovals=${initializeRemovals}
 initializeRemovals(App)
 local initializeCrosshair=${initializeCrosshair}
 initializeCrosshair(App)
+local initializeWorld=${initializeWorld}
+initializeWorld(App,${skyPresets})
 ENV.MintProjectNeverloseCS2=App
 ENV.MintProjectUI=App
 Window.Signal:SetValue(true)

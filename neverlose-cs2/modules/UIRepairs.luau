@@ -1,7 +1,7 @@
 return function(Library)
  local UIS=game:GetService("UserInputService")
  local TextService=game:GetService("TextService")
- local S={Alive=true,Connections={},Pickers={},Options={},Sliders={},Drag=nil,ActivePicker=nil,ActiveOption=nil}
+ local S={Alive=true,Connections={},Pickers={},Options={},Sliders={},Dropdowns={},Drag=nil,ActivePicker=nil,ActiveOption=nil,ActiveDropdown=nil}
  Library.UIRepairs=S
  local function connect(signal,callback)
   local c=signal:Connect(callback);table.insert(S.Connections,c);return c
@@ -33,6 +33,7 @@ return function(Library)
  end
  local function closePopups()
   S.Drag=nil
+  if S.ActiveDropdown then S.ActiveDropdown.SetFrameRender(false)end
   if S.ActivePicker then S.ActivePicker.SetRender(false)end
   if S.ActiveOption then S.ActiveOption.Signal:SetValue(false)end
  end
@@ -46,6 +47,7 @@ return function(Library)
  connect(UIS.InputBegan,function(input)
   if not mouseDown(input)then return end
   local p=point(input)
+  if S.ActiveDropdown and inside(S.ActiveDropdown.BlockRoot,p)then return end
   if S.ActivePicker and inside(S.ActivePicker.Root,p)then return end
   if S.ActivePicker and not inside(S.ActivePicker.Root,p)and not inside(S.ActivePicker.Anchor,p)then S.ActivePicker.SetRender(false)end
   if S.ActiveOption and not inside(S.ActiveOption.Root,p)and not inside(S.ActiveOption.Anchor,p)then S.ActiveOption.Signal:SetValue(false)end
@@ -145,11 +147,13 @@ return function(Library)
    if not S.Alive then return end
    if value then
     if S.ActiveOption and S.ActiveOption~=o then S.ActiveOption.Signal:SetValue(false)end
+    if S.ActiveDropdown then S.ActiveDropdown.SetFrameRender(false)end
     if S.ActivePicker then S.ActivePicker.SetRender(false)end
     S.ActiveOption=o;root.Parent=Library.ScreenGui;root.Visible=true;shadow:Render(true);resize()
    else
     if S.ActiveOption==o then S.ActiveOption=nil end
     if S.ActivePicker and S.ActivePicker.Anchor:IsDescendantOf(root)then S.ActivePicker.SetRender(false)end
+    if S.ActiveDropdown and S.ActiveDropdown.Root:IsDescendantOf(root)then S.ActiveDropdown.SetFrameRender(false)end
     shadow:Render(false);root.Visible=false;root.Parent=nil
    end
   end
@@ -199,6 +203,41 @@ return function(Library)
   local function schedule()if not pending then pending=true;task.defer(refresh)end end
   connect(handler.ChildAdded,schedule);connect(handler.ChildRemoved,schedule);connect(row:GetPropertyChangedSignal("AbsoluteSize"),schedule)
   if layout then connect(layout:GetPropertyChangedSignal("AbsoluteContentSize"),schedule)end
+  local addDropdown=h.AddDropdown
+  function h:AddDropdown(config)
+   local d=addDropdown(self,config)
+   local render=d.SetFrameRender
+   local placing=false
+   local function reposition()
+    if placing or not S.Alive or not d.OpenSignal:GetValue()or not d.Root.Parent then return end
+    placing=true
+    local viewport=workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280,720)
+    local width=math.min(math.max(d.Root.AbsoluteSize.X,d.ExtentSize+35),math.max(80,viewport.X-16))
+    local height=math.min(d.BlockRoot.Size.Y.Offset,math.max(30,viewport.Y-16))
+    local pos=d.Root.AbsolutePosition
+    local y=pos.Y+d.Root.AbsoluteSize.Y+4
+    if y+height>viewport.Y-8 then y=pos.Y-height-4 end
+    d.BlockRoot.AnchorPoint=Vector2.zero
+    d.BlockRoot.Size=UDim2.fromOffset(width,height)
+    d.BlockRoot.Position=UDim2.fromOffset(math.clamp(pos.X,8,math.max(8,viewport.X-width-8)),math.clamp(y,8,math.max(8,viewport.Y-height-8)))
+    placing=false
+   end
+   d.SetFrameRender=function(value)
+    if value then
+     if S.ActiveDropdown and S.ActiveDropdown~=d then S.ActiveDropdown.SetFrameRender(false)end
+     S.ActiveDropdown=d
+    else
+     if S.ActiveDropdown==d then S.ActiveDropdown=nil end
+     Library.IsMosueOverOtherFrame=false
+     if d.DisconnectInput then d.DisconnectInput()end
+    end
+    render(value)
+    if value then reposition();task.defer(reposition)end
+   end
+   connect(d.BlockRoot:GetPropertyChangedSignal("AbsoluteSize"),reposition)
+   signal:Connect(function(value)if not value then d.SetFrameRender(false)end end)
+   table.insert(S.Dropdowns,d);schedule();return d
+  end
   function h:AddColorPicker(config)
    config=config or {}
    local value=config.Default or Color3.new(1,1,1)
@@ -312,6 +351,7 @@ return function(Library)
   for _,connection in ipairs(self.Connections)do connection:Disconnect()end
   for _,p in ipairs(self.Pickers)do p.Root:Destroy()end
   for _,o in ipairs(self.Options)do o.Root:Destroy()end
+  for _,d in ipairs(self.Dropdowns)do d.BlockRoot:Destroy()end
   table.clear(self.Connections)
  end
  local unload=Library.Unload

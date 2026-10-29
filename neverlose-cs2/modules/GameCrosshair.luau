@@ -3,7 +3,7 @@ return function(App)
  local RunService=game:GetService("RunService")
  local LocalPlayer=Players.LocalPlayer
  local PlayerGui=LocalPlayer:WaitForChild("PlayerGui")
- local C={Alive=true,GameAngle=0,ScopeAngle=0,Settings={Force=false,Custom=false,Size=100,Transparency=0,Length=8,Width=2,Gap=4,Dot=true,Outline=false,Color=Color3.fromRGB(242,245,250),Spin=false,SpinSpeed=90,ScopeSize=100,ScopeTransparency=0,ScopeLength=180,ScopeGap=6,ScopeSpin=false,ScopeSpinSpeed=90},Records={},Connections={},TargetConnections={},Strokes={},Stats={Errors=0}}
+ local C={Alive=true,GameAngle=0,ScopeAngle=0,Settings={NoSniperZoom=false,Force=false,Custom=false,Size=100,Transparency=0,Length=8,Width=2,Gap=4,Dot=true,Outline=false,Color=Color3.fromRGB(242,245,250),Spin=false,SpinSpeed=90,ScopeSize=100,ScopeTransparency=0,ScopeLength=180,ScopeGap=6,ScopeSpin=false,ScopeSpinSpeed=90},Records={},Connections={},TargetConnections={},Strokes={},Stats={Errors=0}}
  App.Crosshair=C
  local Variables
  if game.GameId==6993600665 then pcall(function()Variables=require(game.ReplicatedFirst.Variables)end)end
@@ -21,6 +21,9 @@ return function(App)
   local original=record.Original[property]
   if instance==self.Frame and property=="Visible"and Variables then
    original=not (self.Scope and self.Scope.Visible)and not Variables.nocrosshair
+  end
+  if instance:IsA("Camera")and property=="FieldOfView"and not (self.Scope and self.Scope.Visible)then
+   original=Variables and Variables.defaultfov or self.BaseFOV or original
   end
   pcall(function()instance[property]=original end)
   record.Original[property]=nil;record.Wanted[property]=nil;record.Connections[property]=nil
@@ -116,6 +119,12 @@ return function(App)
     wanted[instance]=wanted[instance]or {};wanted[instance][property]=value
    end
    local frame,scope=self.Frame,self.Scope
+   local camera=workspace.CurrentCamera
+   if self.Settings.NoSniperZoom and scope and scope.Visible and camera then
+    want(camera,"FieldOfView",Variables and Variables.defaultfov or self.BaseFOV or 70)
+   elseif camera and not (scope and scope.Visible)then
+    self.BaseFOV=Variables and Variables.defaultfov or camera.FieldOfView
+   end
    if frame and frame.Parent then
     local scopedReticle=self:ScopeActive()
     if scopedReticle then want(frame,"Visible",false)elseif self.Settings.Force then want(frame,"Visible",true)end
@@ -212,7 +221,9 @@ return function(App)
   if instance.Name=="Crosshair"or instance.Name=="ScopeCrosshair"or instance.Name=="CustomFrame"then schedule()end
  end))
  table.insert(C.Connections,LocalPlayer.CharacterAdded:Connect(schedule))
+ table.insert(C.Connections,workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(schedule))
  local section=App.Tabs.Visuals:AddSection({Name="CROSSHAIR",Position="right"})
+ section:AddLabel("No sniper zoom"):AddToggle({Default=false,Flag="crosshair_no_sniper_zoom",Callback=function(v)C:Set("NoSniperZoom",v)end})
  section:AddLabel("Force crosshair"):AddToggle({Default=false,Flag="crosshair_force",Callback=function(v)C:Set("Force",v)end})
  local row=section:AddLabel("Game crosshair")
  local toggle=row:AddToggle({Default=false,Flag="crosshair_custom",Callback=function(v)C:Set("Custom",v)end})
