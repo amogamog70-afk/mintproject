@@ -14,11 +14,12 @@ The ESP tab contains player boxes, names, distance, health, held-item names and 
 
 Run `node tools/build-neverlose-cs2.mjs` from this folder. The self-contained build is written to `dist/main.luau` and `MintProject Neverlose CS2.lua`. The PNG silhouettes are embedded in `assets/equipment/WhiteIcons.luau` and cached locally by the executor.
 
-## Crosshair and markers in 2026.10.29.4
+## Crosshair and markers in 2026.10.29.5
 
 - No scope overlay removes the scope mask, edge bars and blur while keeping the zoom container intact. Four white sniper-reticle lines replace the mask. Its options control line length, center gap, spin and spin speed.
 - Force crosshair keeps the standard game crosshair visible with sniper rifles. Game crosshair edits its existing frames: length, width, gap, color, center dot and outline. These settings are inside its three-dot options button.
 - Both reticles have independent Spin and Spin speed controls. Speed is measured in degrees per second. The animation uses one shared render connection, which stops when neither visible reticle is rotating. Turning Spin off restores the regular orientation.
+- Both reticles have Size (25–300%) and Transparency (0–100%). Size scales line length, width, gap and center dot together. Transparency 0% is fully visible; 100% also hides the outline and stops the invisible reticle's animation.
 - No enemy markers hides the game's `Enemy_` indicators. No ping markers hides in-world ping markers without touching scoreboard ping values or MintProject ESP.
 - Disabling features or unloading restores the controlled properties. Gameplay zoom and weapon data are not modified.
 

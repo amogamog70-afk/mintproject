@@ -3,7 +3,7 @@ return function(App)
  local RunService=game:GetService("RunService")
  local LocalPlayer=Players.LocalPlayer
  local PlayerGui=LocalPlayer:WaitForChild("PlayerGui")
- local C={Alive=true,GameAngle=0,ScopeAngle=0,Settings={Force=false,Custom=false,Length=8,Width=2,Gap=4,Dot=true,Outline=false,Color=Color3.fromRGB(242,245,250),Spin=false,SpinSpeed=90,ScopeLength=180,ScopeGap=6,ScopeSpin=false,ScopeSpinSpeed=90},Records={},Connections={},TargetConnections={},Strokes={},Stats={Errors=0}}
+ local C={Alive=true,GameAngle=0,ScopeAngle=0,Settings={Force=false,Custom=false,Size=100,Transparency=0,Length=8,Width=2,Gap=4,Dot=true,Outline=false,Color=Color3.fromRGB(242,245,250),Spin=false,SpinSpeed=90,ScopeSize=100,ScopeTransparency=0,ScopeLength=180,ScopeGap=6,ScopeSpin=false,ScopeSpinSpeed=90},Records={},Connections={},TargetConnections={},Strokes={},Stats={Errors=0}}
  App.Crosshair=C
  local Variables
  if game.GameId==6993600665 then pcall(function()Variables=require(game.ReplicatedFirst.Variables)end)end
@@ -63,7 +63,11 @@ return function(App)
     self.ScopeLines[name]=line
    end
   end
-  local length,gap=self.Settings.ScopeLength,self.Settings.ScopeGap
+  local scale=self.Settings.ScopeSize/100
+  local length=math.max(1,math.floor(self.Settings.ScopeLength*scale+.5))
+  local gap=math.floor(self.Settings.ScopeGap*scale+.5)
+  local width=math.max(1,math.floor(scale+.5))
+  for _,part in pairs(self.ScopeLines)do set(part,"BackgroundTransparency",self.Settings.ScopeTransparency/100)end
   local root=self.ScopeReticle
   set(root,"Position",self.Frame and self.Frame.Position or UDim2.fromScale(.5,.5))
   set(root,"Visible",self:ScopeActive())
@@ -72,16 +76,16 @@ return function(App)
    local part=self.ScopeLines[name]
    set(part,"AnchorPoint",anchor);set(part,"Position",position);set(part,"Size",size)
   end
-  line("Right",Vector2.new(0,.5),UDim2.fromOffset(gap,0),UDim2.fromOffset(length,1))
-  line("Left",Vector2.new(1,.5),UDim2.fromOffset(-gap,0),UDim2.fromOffset(length,1))
-  line("Top",Vector2.new(.5,1),UDim2.fromOffset(0,-gap),UDim2.fromOffset(1,length))
-  line("Bottom",Vector2.new(.5,0),UDim2.fromOffset(0,gap),UDim2.fromOffset(1,length))
+  line("Right",Vector2.new(0,.5),UDim2.fromOffset(gap,0),UDim2.fromOffset(length,width))
+  line("Left",Vector2.new(1,.5),UDim2.fromOffset(-gap,0),UDim2.fromOffset(length,width))
+  line("Top",Vector2.new(.5,1),UDim2.fromOffset(0,-gap),UDim2.fromOffset(width,length))
+  line("Bottom",Vector2.new(.5,0),UDim2.fromOffset(0,gap),UDim2.fromOffset(width,length))
  end
  function C:UpdateSpin()
   if not self.Alive then return end
   local rootVisible=self.Root and self.Root.Enabled
-  local gameSpin=rootVisible and self.Settings.Spin and self.Settings.SpinSpeed>0 and (self.Settings.Custom or self.Settings.Force)and self.Frame and self.Frame.Parent and self.Frame.Visible and not self:ScopeActive()
-  local scopeSpin=rootVisible and self.Settings.ScopeSpin and self.Settings.ScopeSpinSpeed>0 and self:ScopeActive()
+  local gameSpin=rootVisible and self.Settings.Transparency<100 and self.Settings.Spin and self.Settings.SpinSpeed>0 and (self.Settings.Custom or self.Settings.Force)and self.Frame and self.Frame.Parent and self.Frame.Visible and not self:ScopeActive()
+  local scopeSpin=rootVisible and self.Settings.ScopeTransparency<100 and self.Settings.ScopeSpin and self.Settings.ScopeSpinSpeed>0 and self:ScopeActive()
   if (gameSpin or scopeSpin)and not self.SpinConnection then
    self.SpinConnection=RunService.RenderStepped:Connect(function(dt)
     if not self.Alive then return end
@@ -119,20 +123,26 @@ return function(App)
     if self.Settings.Spin and self.Settings.SpinSpeed>0 and (self.Settings.Custom or self.Settings.Force)and not scopedReticle then want(frame,"Rotation",self.GameAngle)end
     if self.Settings.Custom then
      local s=self.Settings
-     local span=2*(s.Length+s.Gap)
-     want(frame,"Size",function(native)return UDim2.new(native.X.Scale,span,native.Y.Scale,span)end)
+     local scale=s.Size/100
+     local length=math.max(1,math.floor(s.Length*scale+.5))
+     local width=math.max(1,math.floor(s.Width*scale+.5))
+     local gap=math.floor(s.Gap*scale+.5)
+     local span=2*(length+gap)
+     want(frame,"Size",function(native)return UDim2.new(native.X.Scale*scale,span,native.Y.Scale*scale,span)end)
      for _,name in ipairs({"Right","Left","Top","Bottom","Dot"})do
       local part=frame:FindFirstChild(name)
       if part and part:IsA("Frame")then
        want(part,"BackgroundColor3",s.Color)
-       if name=="Right"or name=="Left"then want(part,"Size",UDim2.fromOffset(s.Length,s.Width))
-       elseif name=="Top"or name=="Bottom"then want(part,"Size",UDim2.fromOffset(s.Width,s.Length))
-       else want(part,"Size",UDim2.fromOffset(s.Width,s.Width));want(part,"Visible",s.Dot)end
+       want(part,"BackgroundTransparency",s.Transparency/100)
+       if name=="Right"or name=="Left"then want(part,"Size",UDim2.fromOffset(length,width))
+       elseif name=="Top"or name=="Bottom"then want(part,"Size",UDim2.fromOffset(width,length))
+       else want(part,"Size",UDim2.fromOffset(width,width));want(part,"Visible",s.Dot)end
        if s.Outline and not self.Strokes[part]then
         local stroke=Instance.new("UIStroke")
         stroke.Name="MintProjectCrosshairOutline";stroke.Thickness=1;stroke.Color=Color3.fromRGB(7,9,13);stroke.ApplyStrokeMode=Enum.ApplyStrokeMode.Border;stroke.Parent=part
         self.Strokes[part]=stroke
        end
+       if self.Strokes[part]then set(self.Strokes[part],"Transparency",s.Transparency/100)end
       end
      end
     end
@@ -211,6 +221,8 @@ return function(App)
  color.Root.LayoutOrder=0
  local options=row:AddOption();options.Trigger.LayoutOrder=20
  C.Options=options
+ options:AddLabel("Size"):AddSlider({Default=100,Min=25,Max=300,Rounding=0,Type="%",Flag="crosshair_size",Callback=function(v)C:Set("Size",v)end})
+ options:AddLabel("Transparency"):AddSlider({Default=0,Min=0,Max=100,Rounding=0,Type="%",Flag="crosshair_transparency",Callback=function(v)C:Set("Transparency",v)end})
  for _,entry in ipairs({{"Length","Length",1,30,8},{"Width","Width",1,8,2},{"Gap","Gap",0,20,4}})do
   local key=entry[1]
   options:AddLabel(entry[2]):AddSlider({Default=entry[5],Min=entry[3],Max=entry[4],Rounding=0,Flag="crosshair_"..key,Callback=function(v)C:Set(key,v)end})
@@ -222,6 +234,8 @@ return function(App)
  local scopeRow=App.Removals.Rows.Scope.Row
  local scopeOptions=scopeRow:AddOption();scopeOptions.Trigger.LayoutOrder=20
  C.ScopeOptions=scopeOptions
+ scopeOptions:AddLabel("Size"):AddSlider({Default=100,Min=25,Max=300,Rounding=0,Type="%",Flag="scope_reticle_size",Callback=function(v)C:Set("ScopeSize",v)end})
+ scopeOptions:AddLabel("Transparency"):AddSlider({Default=0,Min=0,Max=100,Rounding=0,Type="%",Flag="scope_reticle_transparency",Callback=function(v)C:Set("ScopeTransparency",v)end})
  scopeOptions:AddLabel("Length"):AddSlider({Default=180,Min=10,Max=600,Rounding=0,Flag="scope_reticle_length",Callback=function(v)C:Set("ScopeLength",v)end})
  scopeOptions:AddLabel("Gap"):AddSlider({Default=6,Min=0,Max=100,Rounding=0,Flag="scope_reticle_gap",Callback=function(v)C:Set("ScopeGap",v)end})
  scopeOptions:AddLabel("Spin"):AddToggle({Default=false,Flag="scope_reticle_spin",Callback=function(v)C:Set("ScopeSpin",v)end})
