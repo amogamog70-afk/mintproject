@@ -3,7 +3,7 @@ return function(App,WhiteIcons)
  local RunService=game:GetService("RunService")
  local LocalPlayer=Players.LocalPlayer
  assert(Drawing and Drawing.new,"Drawing API unavailable")
- local ESP={Alive=true,Enabled=false,Entries={},Connections={},ItemCatalog={},Settings={Box=true,Names=true,Distance=true,Health=true,HealthNumber=true,ItemName=true,ItemIcon=true,TeamCheck=false,FixedSize=true,BoxWidth=64,BoxHeight=112,MaxDistance=1800,TextSize=13,Color=Color3.fromRGB(225,233,245)},Stats={Visible=0,Tracked=0,Drawings=0,Icons=0,FrameMs=0,Errors=0}}
+ local ESP={Alive=true,Enabled=false,Entries={},Connections={},ItemCatalog={},Settings={Box=true,Names=true,Distance=true,Health=true,HealthNumber=true,ItemName=true,ItemIcon=true,TeamCheck=false,FixedSize=false,MaxDistance=1800,TextSize=13,Color=Color3.fromRGB(225,233,245)},Stats={Visible=0,Tracked=0,Drawings=0,Icons=0,FrameMs=0,Errors=0}}
  App.ESP=ESP
  local Overlay=Instance.new("ScreenGui")
  Overlay.Name="MintProjectEquipmentESP";Overlay.IgnoreGuiInset=true;Overlay.ResetOnSpawn=false;Overlay.DisplayOrder=100
@@ -98,12 +98,6 @@ return function(App,WhiteIcons)
   local center=rootFrame:PointToWorldSpace(entry.Offset)
   local projected=camera:WorldToViewportPoint(center)
   if projected.Z<.5 then return nil end
-  if self.Settings.FixedSize then
-   local w,h=self.Settings.BoxWidth,self.Settings.BoxHeight
-   local x,y=floor(projected.X-w*.5+.5),floor(projected.Y-h*.5+.5)
-   if x+w<0 or x>viewport.X or y+h<0 or y>viewport.Y then return nil end
-   return x,y,w,h
-  end
   local radius=entry.Half.Magnitude*viewport.Y/(2*math.tan(math.rad(camera.FieldOfView)*.5)*math.max(.1,projected.Z-entry.Half.Magnitude))
   if projected.X+radius<0 or projected.X-radius>viewport.X or projected.Y+radius<0 or projected.Y-radius>viewport.Y then return nil end
   if now>=(entry.NextBounds or 0)then entry.NextBounds=now+.25;measure(entry)end
@@ -326,9 +320,8 @@ return function(App,WhiteIcons)
  ESP.Toggle=enabled.Toggle
  enabled.Options:AddLabel("Text size"):AddSlider({Default=13,Min=11,Max=18,Rounding=0,Flag="player_esp_text",Callback=function(v)ESP.Settings.TextSize=v end})
  enabled.Options:AddLabel("Distance"):AddSlider({Default=1800,Min=100,Max=5000,Rounding=0,Flag="player_esp_range",Callback=function(v)ESP.Settings.MaxDistance=v end})
- enabled.Options:AddLabel("Fixed size"):AddToggle({Default=true,Flag="player_esp_fixed_size",Callback=function(v)ESP.Settings.FixedSize=v end})
- enabled.Options:AddLabel("Box width"):AddSlider({Default=64,Min=20,Max=240,Rounding=0,Type=" px",Flag="player_esp_box_width",Callback=function(v)ESP.Settings.BoxWidth=v end})
- enabled.Options:AddLabel("Box height"):AddSlider({Default=112,Min=40,Max=360,Rounding=0,Type=" px",Flag="player_esp_box_height",Callback=function(v)ESP.Settings.BoxHeight=v end})
+ -- Consume the previous build's flag so old saved configs cannot re-enable fixed pixels.
+ App.Library.Flags.player_esp_fixed_size={GetValue=function()return false end,SetValue=function()end}
  row("Box","Box","Color")
  row("Names","Name","NameColor")
  row("Distance","Distance","DistanceColor")

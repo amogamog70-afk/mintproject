@@ -34,11 +34,15 @@ Validation: compiled the complete build; live checks for FOV enforcement/restora
 
 Validation: full Luau compilation and live fixtures for all four filters, master toggling, manual-emission transparency, late BulletHole tagging, pooled Trail reuse, transient-target cleanup, native damage-number template restoration, and exclusions for weapon ammo meshes/decorative trails. Complete screenshot review remains unavailable.
 
-## Fixed ESP size in 2026.10.29.8
+## ESP, movement and camera recoil in 2026.10.29.9
 
-ESP → Enabled → three-dot options contains Fixed size (on by default), Box width and Box height. The default box measures 64×112 screen pixels at every distance and player rotation. Text keeps its configured pixel size; health bars, names, distance and equipment remain positioned relative to the box. Fixed mode projects only the center and skips periodic body measurement/eight-corner projection. Turning Fixed size off restores the original body-bound projection.
+- ESP uses its original body-bound projection again: boxes scale with player distance, with health and equipment aligned to their bounds. Fixed pixel dimensions and their controls were removed. The old saved fixed-size flag is consumed without enabling that mode.
+- Movement → B-hop repeats normal Humanoid jumps after landing. Hold Space defaults on; disabling that option makes it hop while moving. Movement → Air strafe steers airborne horizontal velocity toward the movement direction. Its options contain Speed limit (25–100% of the current Humanoid WalkSpeed) and Steering. Hold Space applies to both features.
+- Air steering preserves vertical velocity, skips unusually large native boosts/knockback and uses the current game WalkSpeed as its ordinary speed ceiling. Ground WalkSpeed and jump power/height are not increased. This is the game's normal movement setting, not a verified anti-cheat threshold; client data cannot establish the server's enforcement limits.
+- Movement pauses for the menu, text input, loss of focus, disabled native controls, death, spectating, climbing, swimming and seated/physics states. One PreSimulation connection runs only while a movement feature is enabled. Jump ownership and handlers are cleaned on disable, character removal and unload.
+- Combat → No recoil suppresses reads/writes of Defusal's camera recoil spring through a reversible wrapper. Spring tuning stays intact, replacements are detected while enabled, and the original spring metatable is restored on disable/unload. This controls camera kick; weapon spread and firing animations remain native. A 4 Hz heartbeat check exists only while enabled.
 
-Validation: full Luau compilation; fixed dimensions at 10/40/200/1000 studs and four rotations; custom width/height; behind-camera/offscreen hiding; dynamic-mode distance scaling; live box/health-bar alignment and reload cleanup. Complete screenshot review remains unavailable.
+Validation: full Luau compilation; dynamic ESP scaling and legacy-config migration; movement fixtures for Space gating, repeated landings, airborne/vertical motion, speed ceilings and excluded states; native Spring fixtures for suppression and restoration; driver shutdown, menu pause and reload cleanup. Complete screenshot review remains unavailable; fixtures do not establish an anti-cheat-safe maximum speed.
 
 ## Crosshair and markers
 

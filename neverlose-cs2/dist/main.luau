@@ -7081,7 +7081,7 @@ if not isfile(configFolder.."/Default") and isfile("MintProject/NeverloseCS2/Def
 end
 local Window=Library:CreateWindow({Name="Neverlose",Content=name,Logo=Library.GlobalLogo,Size=Library.Scales.Large,ConfigFolder=configFolder,Enable3DRenderer=false,Keybind="RightShift"})
 Window:SetAccount({Username=game:GetService("Players").LocalPlayer.DisplayName,Expires="MintProject"})
-local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.8",Game={Name=name,PlaceId=game.PlaceId}}
+local App={Library=Library,Window=Window,Tabs={},Connections={},Build="2026.10.29.9",Game={Name=name,PlaceId=game.PlaceId}}
 local unloaded=false
 local originalUnload=Library.Unload
 function Library:Unload()
@@ -7178,7 +7178,7 @@ local initializeESP=function(App,WhiteIcons)
  local RunService=game:GetService("RunService")
  local LocalPlayer=Players.LocalPlayer
  assert(Drawing and Drawing.new,"Drawing API unavailable")
- local ESP={Alive=true,Enabled=false,Entries={},Connections={},ItemCatalog={},Settings={Box=true,Names=true,Distance=true,Health=true,HealthNumber=true,ItemName=true,ItemIcon=true,TeamCheck=false,FixedSize=true,BoxWidth=64,BoxHeight=112,MaxDistance=1800,TextSize=13,Color=Color3.fromRGB(225,233,245)},Stats={Visible=0,Tracked=0,Drawings=0,Icons=0,FrameMs=0,Errors=0}}
+ local ESP={Alive=true,Enabled=false,Entries={},Connections={},ItemCatalog={},Settings={Box=true,Names=true,Distance=true,Health=true,HealthNumber=true,ItemName=true,ItemIcon=true,TeamCheck=false,FixedSize=false,MaxDistance=1800,TextSize=13,Color=Color3.fromRGB(225,233,245)},Stats={Visible=0,Tracked=0,Drawings=0,Icons=0,FrameMs=0,Errors=0}}
  App.ESP=ESP
  local Overlay=Instance.new("ScreenGui")
  Overlay.Name="MintProjectEquipmentESP";Overlay.IgnoreGuiInset=true;Overlay.ResetOnSpawn=false;Overlay.DisplayOrder=100
@@ -7273,12 +7273,6 @@ local initializeESP=function(App,WhiteIcons)
   local center=rootFrame:PointToWorldSpace(entry.Offset)
   local projected=camera:WorldToViewportPoint(center)
   if projected.Z<.5 then return nil end
-  if self.Settings.FixedSize then
-   local w,h=self.Settings.BoxWidth,self.Settings.BoxHeight
-   local x,y=floor(projected.X-w*.5+.5),floor(projected.Y-h*.5+.5)
-   if x+w<0 or x>viewport.X or y+h<0 or y>viewport.Y then return nil end
-   return x,y,w,h
-  end
   local radius=entry.Half.Magnitude*viewport.Y/(2*math.tan(math.rad(camera.FieldOfView)*.5)*math.max(.1,projected.Z-entry.Half.Magnitude))
   if projected.X+radius<0 or projected.X-radius>viewport.X or projected.Y+radius<0 or projected.Y-radius>viewport.Y then return nil end
   if now>=(entry.NextBounds or 0)then entry.NextBounds=now+.25;measure(entry)end
@@ -7501,9 +7495,8 @@ local initializeESP=function(App,WhiteIcons)
  ESP.Toggle=enabled.Toggle
  enabled.Options:AddLabel("Text size"):AddSlider({Default=13,Min=11,Max=18,Rounding=0,Flag="player_esp_text",Callback=function(v)ESP.Settings.TextSize=v end})
  enabled.Options:AddLabel("Distance"):AddSlider({Default=1800,Min=100,Max=5000,Rounding=0,Flag="player_esp_range",Callback=function(v)ESP.Settings.MaxDistance=v end})
- enabled.Options:AddLabel("Fixed size"):AddToggle({Default=true,Flag="player_esp_fixed_size",Callback=function(v)ESP.Settings.FixedSize=v end})
- enabled.Options:AddLabel("Box width"):AddSlider({Default=64,Min=20,Max=240,Rounding=0,Type=" px",Flag="player_esp_box_width",Callback=function(v)ESP.Settings.BoxWidth=v end})
- enabled.Options:AddLabel("Box height"):AddSlider({Default=112,Min=40,Max=360,Rounding=0,Type=" px",Flag="player_esp_box_height",Callback=function(v)ESP.Settings.BoxHeight=v end})
+ -- Consume the previous build's flag so old saved configs cannot re-enable fixed pixels.
+ App.Library.Flags.player_esp_fixed_size={GetValue=function()return false end,SetValue=function()end}
  row("Box","Box","Color")
  row("Names","Name","NameColor")
  row("Distance","Distance","DistanceColor")
@@ -8258,6 +8251,191 @@ initializeWorld(App,{
  {Name="Sunset",Faces={"rbxassetid://323494035","rbxassetid://323494368","rbxassetid://323494130","rbxassetid://323494252","rbxassetid://323494067","rbxassetid://323493360"}},
 }
 )
+local initializeMovement=function(App)
+ local Players=game:GetService("Players")
+ local RunService=game:GetService("RunService")
+ local UIS=game:GetService("UserInputService")
+ local GuiService=game:GetService("GuiService")
+ local player=Players.LocalPlayer
+ local Variables
+ if game.GameId==6993600665 then pcall(function()Variables=require(game.ReplicatedFirst.Variables)end)end
+ local M={Alive=true,Focused=true,Connections={},Settings={Bhop=false,AirStrafe=false,HoldSpace=true,AirSpeed=100,Steering=10},Stats={Errors=0,Jumps=0,Steered=0,NativeSpeed=0,SpeedCap=0}}
+ App.Movement=M
+ local excluded={
+  [Enum.HumanoidStateType.Dead]=true,[Enum.HumanoidStateType.Swimming]=true,
+  [Enum.HumanoidStateType.Climbing]=true,[Enum.HumanoidStateType.Seated]=true,
+  [Enum.HumanoidStateType.Physics]=true,[Enum.HumanoidStateType.PlatformStanding]=true,
+  [Enum.HumanoidStateType.Ragdoll]=true,[Enum.HumanoidStateType.FallingDown]=true,
+ }
+ function M:ComputeAirVelocity(velocity,wish,cap,dt)
+  if cap<=0 or dt<=0 then return velocity end
+  wish=Vector3.new(wish.X,0,wish.Z)
+  if wish.Magnitude<.01 then return velocity end
+  local flat=Vector3.new(velocity.X,0,velocity.Z)
+  -- Preserve game knockback/boosts; ordinary steering never creates speed above the cap.
+  if flat.Magnitude>math.max(cap,self.Stats.NativeSpeed)*1.25 then return velocity end
+  local alpha=1-math.exp(-self.Settings.Steering*math.min(dt,.1))
+  local steered=flat:Lerp(wish.Unit*cap,alpha)
+  if steered.Magnitude>cap then steered=steered.Unit*cap end
+  return Vector3.new(steered.X,velocity.Y,steered.Z)
+ end
+ function M:ReleaseJump()
+  if self.JumpHumanoid then pcall(function()self.JumpHumanoid.Jump=false end)end
+  self.JumpHumanoid=nil;self.WasGrounded=false;self.LastJump=0
+ end
+ function M:StepCharacter(humanoid,root,dt,space,now)
+  local state=humanoid:GetState()
+  if humanoid.Health<=0 or humanoid.Sit or humanoid.PlatformStand or root.Anchored or excluded[state]then return end
+  local speed=humanoid.WalkSpeed
+  self.Stats.NativeSpeed=speed
+  self.Stats.SpeedCap=speed*self.Settings.AirSpeed/100
+  if speed<=0 then return end
+  local grounded=humanoid.FloorMaterial~=Enum.Material.Air or state==Enum.HumanoidStateType.Landed
+  local airborne=not grounded and (state==Enum.HumanoidStateType.Freefall or state==Enum.HumanoidStateType.Jumping)
+  local moving=humanoid.MoveDirection.Magnitude>.01
+  if not grounded then self.WasGrounded=false end
+  local jumpAllowed=humanoid:GetStateEnabled(Enum.HumanoidStateType.Jumping)and (humanoid.UseJumpPower and humanoid.JumpPower>0 or not humanoid.UseJumpPower and humanoid.JumpHeight>0)
+  if self.Settings.Bhop and grounded and jumpAllowed and not self.WasGrounded and now-(self.LastJump or 0)>=.1 and (self.Settings.HoldSpace and space or not self.Settings.HoldSpace and moving)then
+   humanoid.Jump=true;self.JumpHumanoid=humanoid;self.WasGrounded=true;self.LastJump=now;self.Stats.Jumps+=1
+  end
+  if self.Settings.AirStrafe and airborne and moving and (not self.Settings.HoldSpace or space)then
+   local current=root.AssemblyLinearVelocity
+   local nextVelocity=self:ComputeAirVelocity(current,humanoid.MoveDirection,self.Stats.SpeedCap,dt)
+   if nextVelocity~=current then root.AssemblyLinearVelocity=nextVelocity;self.Stats.Steered+=1 end
+  end
+ end
+ function M:Step(dt)
+  if not self.Alive then return end
+  if not self.Focused or UIS:GetFocusedTextBox()or GuiService.MenuIsOpen or App.Window.Signal:GetValue()or player:GetAttribute("Alive")==false then self:ReleaseJump();return end
+  if Variables and (Variables.spectator or Variables.nomovement or Variables.climbing or Variables.push and Variables.push>0)then self:ReleaseJump();return end
+  local controls=player.PlayerScripts:FindFirstChild("ControlScript")
+  local disabled=controls and controls:FindFirstChild("Dis")
+  if disabled and disabled.Value then self:ReleaseJump();return end
+  local character=player.Character
+  local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+  local root=character and character:FindFirstChild("HumanoidRootPart")
+  if not humanoid or not root then self:ReleaseJump();return end
+  if self.Humanoid~=humanoid then self:ReleaseJump();self.Humanoid=humanoid end
+  self:StepCharacter(humanoid,root,dt,UIS:IsKeyDown(Enum.KeyCode.Space),os.clock())
+ end
+ function M:UpdateDriver()
+  local active=self.Alive and (self.Settings.Bhop or self.Settings.AirStrafe)
+  if active and not self.Driver then
+   self.Driver=RunService.PreSimulation:Connect(function(dt)
+    local ok,err=pcall(self.Step,self,dt)
+    if not ok then self.Stats.Errors+=1;self.LastError=tostring(err);self:ReleaseJump();if self.Driver then self.Driver:Disconnect();self.Driver=nil end end
+   end)
+  elseif not active and self.Driver then self.Driver:Disconnect();self.Driver=nil;self:ReleaseJump()end
+ end
+ function M:Set(key,value)
+  self.Settings[key]=value
+  if key=="Bhop"and not value then self:ReleaseJump()end
+  self:UpdateDriver()
+ end
+ function M:Destroy()
+  if not self.Alive then return end
+  self.Alive=false;self:UpdateDriver();self:ReleaseJump()
+  for _,c in ipairs(self.Connections)do c:Disconnect()end
+  table.clear(self.Connections)
+ end
+ table.insert(M.Connections,UIS.WindowFocusReleased:Connect(function()M.Focused=false;M:ReleaseJump()end))
+ table.insert(M.Connections,UIS.WindowFocused:Connect(function()M.Focused=true end))
+ table.insert(M.Connections,player.CharacterRemoving:Connect(function()M:ReleaseJump();M.Humanoid=nil end))
+ table.insert(M.Connections,App.Window.Signal:Connect(function(visible)if visible then M:ReleaseJump()end end))
+ local section=App.Tabs.Movement:AddSection({Name="MOVEMENT",Position="left"})
+ local bhop=section:AddLabel("B-hop")
+ local bToggle=bhop:AddToggle({Default=false,Flag="movement_bhop",Callback=function(v)M:Set("Bhop",v)end});bToggle.Root.LayoutOrder=10
+ local bOptions=bhop:AddOption();bOptions.Trigger.LayoutOrder=20;M.BhopOptions=bOptions
+ bOptions:AddLabel("Hold Space"):AddToggle({Default=true,Flag="movement_hold_space",Callback=function(v)M:Set("HoldSpace",v)end})
+ local air=section:AddLabel("Air strafe")
+ local aToggle=air:AddToggle({Default=false,Flag="movement_air_strafe",Callback=function(v)M:Set("AirStrafe",v)end});aToggle.Root.LayoutOrder=10
+ local aOptions=air:AddOption();aOptions.Trigger.LayoutOrder=20;M.AirOptions=aOptions
+ aOptions:AddLabel("Speed limit"):AddSlider({Default=100,Min=25,Max=100,Rounding=0,Type="%",Flag="movement_air_speed",Callback=function(v)M:Set("AirSpeed",v)end})
+ aOptions:AddLabel("Steering"):AddSlider({Default=10,Min=1,Max=30,Rounding=0,Flag="movement_air_steering",Callback=function(v)M:Set("Steering",v)end})
+ local unload=App.Library.Unload
+ function App.Library:Unload()M:Destroy();return unload(self)end
+ return M
+end
+
+initializeMovement(App)
+local initializeRecoil=function(App)
+ local RunService=game:GetService("RunService")
+ local R={Alive=true,Enabled=false,Records={},Stats={Springs=0,Errors=0}}
+ App.Recoil=R
+ local Variables
+ if game.GameId==6993600665 then pcall(function()Variables=require(game.ReplicatedFirst.Variables)end)end
+ local vectorKeys={value=true,position=true,p=true,velocity=true,v=true,acceleration=true,a=true,target=true,t=true}
+ local zero=Vector3.zero
+ function R:Drop(spring)
+  local record=self.Records[spring]
+  if not record then return end
+  if getmetatable(spring)==record.Wrapper then
+   -- Clear suppressed impulses so disabling does not replay a previous shot.
+   record.Original.__newindex(spring,"t",zero)
+   record.Original.__newindex(spring,"p",zero)
+   record.Original.__newindex(spring,"v",zero)
+   setmetatable(spring,record.Original)
+  end
+  self.Records[spring]=nil;self.Stats.Springs-=1
+ end
+ function R:Attach(spring)
+  if type(spring)~="table"or self.Records[spring]then return end
+  local original=getmetatable(spring)
+  if type(original)~="table"or type(original.__index)~="function"or type(original.__newindex)~="function"then return end
+  local wrapper=table.clone(original)
+  wrapper.__index=function(object,key)
+   if self.Alive and self.Enabled then
+    if vectorKeys[key]then return zero end
+    if key=="magnitude"or key=="m"then return 0 end
+   end
+   return original.__index(object,key)
+  end
+  wrapper.__newindex=function(object,key,value)
+   if self.Alive and self.Enabled and vectorKeys[key]then value=zero end
+   return original.__newindex(object,key,value)
+  end
+  original.__newindex(spring,"t",zero);original.__newindex(spring,"p",zero);original.__newindex(spring,"v",zero)
+  setmetatable(spring,wrapper)
+  self.Records[spring]={Original=original,Wrapper=wrapper};self.Stats.Springs+=1
+ end
+ function R:Resolve()
+  if not Variables then return end
+  local spring=Variables.camRecoilSpring
+  local remove={};for old in pairs(self.Records)do if old~=spring then table.insert(remove,old)end end
+  for _,old in ipairs(remove)do self:Drop(old)end
+  if spring then self:Attach(spring)end
+ end
+ function R:SetEnabled(value)
+  self.Enabled=value==true and self.Alive
+  if self.Enabled then
+   local ok,err=pcall(self.Resolve,self)
+   if not ok then self.Stats.Errors+=1;self.LastError=tostring(err)end
+   if not self.Driver then
+    local elapsed=0
+    self.Driver=RunService.Heartbeat:Connect(function(dt)
+     elapsed+=dt;if elapsed<.25 then return end;elapsed=0
+     local success,why=pcall(self.Resolve,self)
+     if not success then self.Stats.Errors+=1;self.LastError=tostring(why);self:SetEnabled(false)end
+    end)
+   end
+  else
+   if self.Driver then self.Driver:Disconnect();self.Driver=nil end
+   local remove={};for spring in pairs(self.Records)do table.insert(remove,spring)end
+   for _,spring in ipairs(remove)do self:Drop(spring)end
+  end
+ end
+ function R:Destroy()
+  if not self.Alive then return end
+  self:SetEnabled(false);self.Alive=false
+ end
+ local section=App.Tabs.Combat:AddSection({Name="WEAPON",Position="left"})
+ section:AddLabel("No recoil"):AddToggle({Default=false,Flag="weapon_no_recoil",Callback=function(v)R:SetEnabled(v)end})
+ local unload=App.Library.Unload
+ function App.Library:Unload()R:Destroy();return unload(self)end
+ return R
+end
+
+initializeRecoil(App)
 ENV.MintProjectNeverloseCS2=App
 ENV.MintProjectUI=App
 Window.Signal:SetValue(true)
