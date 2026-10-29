@@ -2,8 +2,14 @@ return function(App)
  local Players=game:GetService("Players")
  local Lighting=game:GetService("Lighting")
  local PlayerGui=Players.LocalPlayer:WaitForChild("PlayerGui")
- local F={Alive=true,Targets={},Connections={},MarkerNames={},Settings={Smoke=false,Flash=false,Fire=false,Explosions=false,Muzzle=false,Damage=false,Scope=false,EnemyMarkers=false,Pings=false},Stats={Targets=0,Changed=0,Errors=0}}
+ local F={Alive=true,Targets={},Connections={},MarkerNames={},Settings={Smoke=false,Flash=false,Fire=false,Explosions=false,Muzzle=false,Damage=false,Scope=false,EnemyMarkers=false,Pings=false,BulletEffects=false,Tracers=true,Impacts=true,BulletHoles=true,Blood=true,DamageNumbers=false},Stats={Targets=0,Changed=0,Errors=0}}
  App.Removals=F
+ local shotCategories={Tracers=true,Impacts=true,BulletHoles=true,Blood=true}
+ local impactMaterials={Wood=true,Sand=true,Metal=true,Concrete=true,Grass=true,Glass=true,Kevlar=true,Helmet=true}
+ function F:IsEnabled(category)
+  if shotCategories[category]then return self.Settings.BulletEffects and self.Settings[category]end
+  return self.Settings[category]==true
+ end
  local function has(text,fragment)return string.find(text,fragment,1,true)~=nil end
  local function pathOf(instance)
   local names={};local p=instance
@@ -14,13 +20,27 @@ return function(App)
   return table.concat(names,"/")
  end
  function F:Classify(instance)
-  local visual=instance:IsA("BasePart")or instance:IsA("ParticleEmitter")or instance:IsA("Beam")or instance:IsA("Trail")or instance:IsA("Smoke")or instance:IsA("Fire")or instance:IsA("Light")or instance:IsA("PostEffect")or instance:IsA("Decal")or instance:IsA("Explosion")
+  local visual=instance:IsA("BasePart")or instance:IsA("ParticleEmitter")or instance:IsA("Beam")or instance:IsA("Trail")or instance:IsA("Smoke")or instance:IsA("Fire")or instance:IsA("Light")or instance:IsA("PostEffect")or instance:IsA("Decal")or instance:IsA("Explosion")or instance:IsA("ImageHandleAdornment")
   local gui=instance:IsA("GuiObject")or instance:IsA("ScreenGui")or instance:IsA("BillboardGui")
   local sound=instance:IsA("Sound")
   if not visual and not gui and not sound then return nil end
   local path=pathOf(instance)
+  local parent=instance.Parent
+  -- Only known cosmetic containers/tags: weapon meshes and physical projectiles stay intact.
+  if instance:IsA("ImageHandleAdornment")and instance:HasTag("BulletHole")then return "BulletHoles"end
+  if instance:IsA("Trail")and parent==workspace.Terrain and instance.Name=="Trail"then return "Tracers"end
+  if instance:IsA("Beam")and parent and parent.Name=="_TrailHolder"and parent.Parent and parent.Parent:IsA("Camera")then return "Tracers"end
+  if (instance:IsA("ParticleEmitter")or instance:IsA("Light"))and parent and parent:IsA("Attachment")then
+   local pool=parent.Parent
+   if pool and pool.Name=="phold"and pool.Parent==workspace.Terrain then
+    local material=parent.Name:match("^(%a+)%d+$")
+    if material=="Blood"or material=="Headshot"then return "Blood"end
+    if impactMaterials[material]then return "Impacts"end
+   end
+  end
   if gui then
    if has(path,"/menu/")or has(path,"mintproject")then return nil end
+   if instance:IsA("BillboardGui")and instance.Name=="Hit"and parent and parent:IsA("BasePart")and parent.Parent and parent.Parent.Name=="BBG"and parent.Parent.Parent==PlayerGui then return "DamageNumbers"end
    if has(path,"hurtoverlay")then return "Damage"end
    if has(path,"scopecrosshair")then
     local parent=instance.Parent
@@ -52,6 +72,7 @@ return function(App)
   if instance:IsA("Light")or instance:IsA("PostEffect")or instance:IsA("Smoke")or instance:IsA("Fire")or instance:IsA("ScreenGui")or instance:IsA("BillboardGui")then return {Enabled=false}end
   if instance:IsA("GuiObject")then return {Visible=false}end
   if instance:IsA("Decal")then return {Transparency=1}end
+  if instance:IsA("ImageHandleAdornment")then return {Visible=false,Transparency=1}end
   if instance:IsA("Explosion")then return {Visible=false}end
   if instance:IsA("Sound")then return {Volume=0}end
   return {}
@@ -81,7 +102,7 @@ return function(App)
    if ok then
     record.Original[property]=original
     local function enforce()
-     if not self.Alive or not record.Active or not self.Settings[record.Category]then return end
+     if not self.Alive or not record.Active or not self:IsEnabled(record.Category)then return end
      local success,err=pcall(function()
       local current=record.Instance[property]
       if not sameValue(current,value)then
@@ -95,7 +116,7 @@ return function(App)
     enforce()
    end
   end
-  if record.Instance:IsA("ParticleEmitter")then pcall(function()record.Instance:Clear()end)end
+  if record.Instance:IsA("ParticleEmitter")or record.Instance:IsA("Trail")then pcall(function()record.Instance:Clear()end)end
   self.Stats.Changed+=1
  end
  function F:Consider(instance)
@@ -111,7 +132,7 @@ return function(App)
   if not category then return end
   local record={Instance=instance,Category=category,Original={},Connections={},Active=false}
   self.Targets[instance]=record;self.Stats.Targets+=1
-  if self.Settings[category]then self:Apply(record)end
+  if self:IsEnabled(category)then self:Apply(record)end
  end
  function F:Forget(instance)
   if self.MarkerNames[instance]then self.MarkerNames[instance]:Disconnect();self.MarkerNames[instance]=nil end
@@ -124,8 +145,8 @@ return function(App)
   if not self.Alive then return end
   self.Settings[category]=value==true
   for _,record in pairs(self.Targets)do
-   if record.Category==category then
-    if value then self:Apply(record)elseif record.Active then self:Restore(record)end
+   if record.Category==category or category=="BulletEffects"and shotCategories[record.Category]then
+    if self:IsEnabled(record.Category)then self:Apply(record)elseif record.Active then self:Restore(record)end
    end
   end
   if category=="Scope"and App.Crosshair then App.Crosshair:Refresh()end
@@ -148,7 +169,7 @@ return function(App)
   local PlayerScripts=Players.LocalPlayer:FindFirstChild("PlayerScripts")
   if PlayerScripts then F:Watch(PlayerScripts)end
   local Collection=game:GetService("CollectionService")
-  for _,tag in ipairs({"Smoke","MollyFX"})do
+  for _,tag in ipairs({"Smoke","MollyFX","BulletHole"})do
    local function considerTree(instance)
     F:Consider(instance)
     for _,child in ipairs(instance:GetDescendants())do F:Consider(child)end
@@ -166,6 +187,19 @@ return function(App)
   toggle.Root.LayoutOrder=10
   F.Rows[category]={Row=row,Toggle=toggle}
  end
+ local bullets=section:AddLabel("No bullet effects")
+ local bulletToggle=bullets:AddToggle({Default=false,Flag="removals_BulletEffects",Callback=function(value)F:Set("BulletEffects",value)end})
+ bulletToggle.Root.LayoutOrder=10
+ F.Rows.BulletEffects={Row=bullets,Toggle=bulletToggle}
+ local bulletOptions=bullets:AddOption();bulletOptions.Trigger.LayoutOrder=20;F.BulletOptions=bulletOptions
+ for _,entry in ipairs({{"Tracers","Bullet tracers"},{"Impacts","Impact particles"},{"BulletHoles","Bullet holes"},{"Blood","Blood effects"}})do
+  local category=entry[1]
+  bulletOptions:AddLabel(entry[2]):AddToggle({Default=true,Flag="removals_"..category,Callback=function(value)F:Set(category,value)end})
+ end
+ local damageNumbers=section:AddLabel("No damage numbers")
+ local numberToggle=damageNumbers:AddToggle({Default=false,Flag="removals_DamageNumbers",Callback=function(value)F:Set("DamageNumbers",value)end})
+ numberToggle.Root.LayoutOrder=10
+ F.Rows.DamageNumbers={Row=damageNumbers,Toggle=numberToggle}
  local unload=App.Library.Unload
  function App.Library:Unload()F:Destroy();return unload(self)end
  return F

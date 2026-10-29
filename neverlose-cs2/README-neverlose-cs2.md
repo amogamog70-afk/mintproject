@@ -25,6 +25,15 @@ Run `node tools/build-neverlose-cs2.mjs` from this folder. The self-contained bu
 
 Validation: compiled the complete build; live checks for FOV enforcement/restoration, lighting overrides/restoration, shadow settings, fog range clamping, atmosphere, tint, sky controls and sky restoration. All 168 downloadable source faces were checked for valid PNG headers/dimensions. Aurora, Sunset and Classic blue were loaded through the live client. Complete visual screenshot review remains unavailable.
 
+## Shot effects in 2026.10.29.7
+
+- Visuals → Removals → No bullet effects suppresses cosmetic shot effects. Its three-dot options independently select Bullet tracers, Impact particles, Bullet holes and Blood effects; all four filters default on, and the master defaults off.
+- No damage numbers is a separate switch for the game's floating damage-number billboards.
+- Classification follows Defusal's actual effect containers: pooled Trails under Terrain, laser Beams under the camera's `_TrailHolder`, material/blood particles in `Terrain.phold`, and ImageHandleAdornments tagged `BulletHole`. Damage-number billboards use `PlayerGui.BBG`. Muzzle flash remains its existing independent setting.
+- Property overrides handle game updates and restore on disable/unload. Pooled effects are released when unparented and detected when reused; transient targets are removed. No additional frame loop or projectile/weapon-data changes are used.
+
+Validation: full Luau compilation and live fixtures for all four filters, master toggling, manual-emission transparency, late BulletHole tagging, pooled Trail reuse, transient-target cleanup, native damage-number template restoration, and exclusions for weapon ammo meshes/decorative trails. Complete screenshot review remains unavailable.
+
 ## Crosshair and markers
 
 - No scope overlay removes the scope mask, edge bars and blur while keeping the zoom container intact. Four white sniper-reticle lines replace the mask. Its options control line length, center gap, spin and spin speed.
